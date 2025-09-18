@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { authAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import logo from "@/assets/images/reva.png"
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -51,12 +52,12 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-background">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10" />
-      
+
       <Card className="w-full max-w-md relative z-10 shadow-card border-border/50 bg-gradient-card backdrop-blur-sm">
         <CardHeader className="text-center space-y-2">
           <div className="flex items-center justify-center mb-4">
             <div className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Reva
+              <img className="w-16 h-16" src={logo} alt="Reva Logo" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
@@ -64,7 +65,7 @@ const Login = () => {
             Enter your credentials to access the admin dashboard
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -79,7 +80,7 @@ const Login = () => {
                 className="bg-input/50 border-border/50 focus:border-primary/50 focus:ring-primary/25"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -92,7 +93,7 @@ const Login = () => {
                 className="bg-input/50 border-border/50 focus:border-primary/50 focus:ring-primary/25"
               />
             </div>
-            
+
             <Button
               type="submit"
               className="w-full bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
