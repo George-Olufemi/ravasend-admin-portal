@@ -1,46 +1,100 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { metricsAPI } from "@/lib/api"; // adjust path to your api file
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Users, Gift, TrendingUp, DollarSign } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { formatDistanceToNow } from "date-fns";
 
 const Dashboard = () => {
-  const user = JSON.parse(localStorage.getItem('reva_admin_user') || '{}');
+  const user = JSON.parse(localStorage.getItem("reva_admin_user") || "{}");
+
+  // Fetch metrics with React Query
+  const {
+    data: metricsResponse,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["metrics"],
+    queryFn: metricsAPI.getAll,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    console.error(error);
+    return <p>Failed to load metrics. Please try again.</p>;
+  }
+
+  const metrics = metricsResponse?.data;
 
   const stats = [
     {
       title: "Total Users",
-      value: "2,845",
-      description: "+12% from last month",
+      value: metrics?.users?.total ?? 0,
+      description: `${metrics?.users?.growthRate} from last month`,
       icon: Users,
       color: "text-blue-500",
     },
     {
       title: "Active Promo Codes",
-      value: "23",
-      description: "5 expiring soon",
+      value: metrics?.promos?.total ?? 0,
+      description: `${metrics?.promos?.expiredSoon} expiring soon`,
       icon: Gift,
       color: "text-green-500",
     },
     {
       title: "Total Transactions",
-      value: "₦45.2M",
-      description: "+8.2% from last month",
+      value: metrics?.transactions?.total ?? 0,
+      description: `${metrics?.transactions?.growthRate} from last month`,
       icon: DollarSign,
       color: "text-yellow-500",
     },
     {
       title: "Growth Rate",
-      value: "+12.5%",
+      value: metrics?.growthRate?.growthRate ?? "0%",
       description: "Monthly active users",
       icon: TrendingUp,
       color: "text-purple-500",
     },
   ];
 
+  // recent activity (users, transactions, promos)
+  type RecentActivity = {
+    users?: Array<{ _id: string; fullName: string; createdAt: string }>;
+    transactions?: Array<{
+      _id: string;
+      amount: number;
+      status: string;
+      createdAt: string;
+    }>;
+    promos?: Array<{ _id: string; promoCode: string; createdAt: string }>;
+  };
+
+  const recent: RecentActivity = metrics?.recent ?? {
+    users: [],
+    transactions: [],
+    promos: [],
+  };
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">
-          Welcome back, {user.fullName || 'Admin'}! 👋
+          Welcome back, {user.fullName || "Admin"}! 👋
         </h1>
         <p className="text-muted-foreground">
           Here's what's happening with your Reva platform today.
@@ -50,7 +104,10 @@ const Dashboard = () => {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title} className="bg-gradient-card border-border/50 shadow-card">
+          <Card
+            key={stat.title}
+            className="bg-gradient-card border-border/50 shadow-card"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {stat.title}
@@ -77,42 +134,67 @@ const Dashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <Users className="h-4 w-4 text-primary" />
+            {/* Recent Users */}
+            {recent.users?.map((u: any) => (
+              <div key={u._id} className="flex items-center space-x-4">
+                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Users className="h-4 w-4 text-primary" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{u.fullName} registered</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(u.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">New user registration</p>
-                <p className="text-xs text-muted-foreground">2 minutes ago</p>
+            ))}
+
+            {/* Recent Transactions */}
+            {recent.transactions?.map((t: any) => (
+              <div key={t._id} className="flex items-center space-x-4">
+                <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <DollarSign className="h-4 w-4 text-green-500" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    Transaction of ₦{t.amount} {t.status.toLowerCase()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(t.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-green-500" />
+            ))}
+
+            {/* Recent Promos */}
+            {recent.promos?.map((p: any) => (
+              <div key={p._id} className="flex items-center space-x-4">
+                <div className="h-8 w-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                  <Gift className="h-4 w-4 text-yellow-500" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    Promo code {p.promoCode} created
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(p.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Transaction completed</p>
-                <p className="text-xs text-muted-foreground">5 minutes ago</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                <Gift className="h-4 w-4 text-yellow-500" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Promo code used</p>
-                <p className="text-xs text-muted-foreground">12 minutes ago</p>
-              </div>
-            </div>
+            ))}
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-card border-border/50 shadow-card">
           <CardHeader>
             <CardTitle>System Status</CardTitle>
-            <CardDescription>
-              All systems operational
-            </CardDescription>
+            <CardDescription>All systems operational</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">

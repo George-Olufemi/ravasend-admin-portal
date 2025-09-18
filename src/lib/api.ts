@@ -69,10 +69,49 @@ export interface CreatePromoCodeData {
   transactionAmount: string;
 }
 
+export interface MetricsResponse {
+  message: string;
+  data: {
+    users: {
+      total: number;
+      thisMonth: number;
+      lastMonth: number;
+      growthRate: string;
+    };
+    transactions: {
+      total: number;
+      thisMonth: number;
+      lastMonth: number;
+      growthRate: string;
+    };
+    promos: {
+      total: number;
+      expiredSoon: number;
+    };
+    growthRate: {
+      total: number;
+      growthRate: string;
+    };
+    recent: {
+      transactions: any[];
+      promos: any[];
+      users: User[];
+    };
+  };
+}
+
+
 // API functions
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
     const response = await api.post("/api/v1/user/login", { email, password });
+    return response.data;
+  },
+};
+
+export const metricsAPI = {
+  getAll: async (): Promise<MetricsResponse> => {
+    const response = await api.get("/api/v1/admin/metrics");
     return response.data;
   },
 };
