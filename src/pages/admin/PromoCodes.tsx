@@ -103,7 +103,7 @@ const PromoCodes = () => {
     e.preventDefault();
     
     if (editingPromo) {
-      updateMutation.mutate({ id: editingPromo._id, data: formData });
+      updateMutation.mutate({ id: editingPromo.promoCode, data: formData });
     } else {
       createMutation.mutate(formData);
     }
@@ -170,13 +170,16 @@ const PromoCodes = () => {
             Manage promotional codes and discounts
           </p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={(open) => {
-          setIsCreateOpen(open);
-          if (!open) {
-            setEditingPromo(null);
-            resetForm();
-          }
-        }}>
+        <Dialog
+          open={isCreateOpen}
+          onOpenChange={(open) => {
+            setIsCreateOpen(open);
+            if (!open) {
+              setEditingPromo(null);
+              resetForm();
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-gradient-primary hover:opacity-90 shadow-glow">
               <Plus className="mr-2 h-4 w-4" />
@@ -189,10 +192,9 @@ const PromoCodes = () => {
                 {editingPromo ? "Edit Promo Code" : "Create New Promo Code"}
               </DialogTitle>
               <DialogDescription>
-                {editingPromo 
-                  ? "Update the promo code details" 
-                  : "Create a new promotional code for users"
-                }
+                {editingPromo
+                  ? "Update the promo code details"
+                  : "Create a new promotional code for users"}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -204,7 +206,9 @@ const PromoCodes = () => {
                     type="number"
                     placeholder="1000"
                     value={formData.discount}
-                    onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, discount: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -215,7 +219,12 @@ const PromoCodes = () => {
                     type="number"
                     placeholder="1000"
                     value={formData.transactionAmount}
-                    onChange={(e) => setFormData({ ...formData, transactionAmount: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        transactionAmount: e.target.value,
+                      })
+                    }
                     required
                   />
                 </div>
@@ -229,7 +238,12 @@ const PromoCodes = () => {
                     min="1"
                     placeholder="1"
                     value={formData.maxUsage}
-                    onChange={(e) => setFormData({ ...formData, maxUsage: parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        maxUsage: parseInt(e.target.value),
+                      })
+                    }
                     required
                   />
                 </div>
@@ -239,31 +253,37 @@ const PromoCodes = () => {
                     id="expiredAt"
                     type="date"
                     value={formData.expiredAt}
-                    onChange={(e) => setFormData({ ...formData, expiredAt: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, expiredAt: e.target.value })
+                    }
                     required
                   />
                 </div>
               </div>
               <div className="flex justify-end space-x-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setIsCreateOpen(false)}
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                <Button
+                  type="submit"
+                  disabled={
+                    createMutation.isPending || updateMutation.isPending
+                  }
                   className="bg-gradient-primary hover:opacity-90"
                 >
-                  {(createMutation.isPending || updateMutation.isPending) ? (
+                  {createMutation.isPending || updateMutation.isPending ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
                       {editingPromo ? "Updating..." : "Creating..."}
                     </>
+                  ) : editingPromo ? (
+                    "Update"
                   ) : (
-                    editingPromo ? "Update" : "Create"
+                    "Create"
                   )}
                 </Button>
               </div>
@@ -323,33 +343,45 @@ const PromoCodes = () => {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        <div>{promo.usageCount} / {promo.maxUsage}</div>
+                        <div>
+                          {promo.usageCount} / {promo.maxUsage}
+                        </div>
                         <div className="text-muted-foreground">
-                          {((promo.usageCount / promo.maxUsage) * 100).toFixed(0)}% used
+                          {((promo.usageCount / promo.maxUsage) * 100).toFixed(
+                            0
+                          )}
+                          % used
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant={isExpired(promo.expiredAt) ? "destructive" : 
-                               promo.usageCount >= promo.maxUsage ? "secondary" : "default"}
+                      <Badge
+                        variant={
+                          isExpired(promo.expiredAt)
+                            ? "destructive"
+                            : promo.usageCount >= promo.maxUsage
+                            ? "secondary"
+                            : "default"
+                        }
                         className={
-                          !isExpired(promo.expiredAt) && promo.usageCount < promo.maxUsage 
-                            ? "bg-green-500/20 text-green-400" 
+                          !isExpired(promo.expiredAt) &&
+                          promo.usageCount < promo.maxUsage
+                            ? "bg-green-500/20 text-green-400"
                             : ""
                         }
                       >
-                        {isExpired(promo.expiredAt) 
-                          ? "Expired" 
-                          : promo.usageCount >= promo.maxUsage 
-                            ? "Used Up" 
-                            : "Active"
-                        }
+                        {isExpired(promo.expiredAt)
+                          ? "Expired"
+                          : promo.usageCount >= promo.maxUsage
+                          ? "Used Up"
+                          : "Active"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        {formatDistanceToNow(new Date(promo.expiredAt), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(promo.expiredAt), {
+                          addSuffix: true,
+                        })}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -365,7 +397,7 @@ const PromoCodes = () => {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => deleteMutation.mutate(promo._id)}
+                          onClick={() => deleteMutation.mutate(promo.promoCode)}
                           disabled={deleteMutation.isPending}
                           className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                         >

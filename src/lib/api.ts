@@ -1,18 +1,18 @@
-import axios from 'axios';
+import axios from "axios";
 
-const BASE_URL = 'https://backend-ymhe.onrender.com';
+const BASE_URL = "https://backend-ymhe.onrender.com";
 
 // Create axios instance
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('reva_admin_token');
+  const token = localStorage.getItem("reva_admin_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -72,36 +72,43 @@ export interface CreatePromoCodeData {
 // API functions
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    const response = await api.post('/admin/login', { email, password });
+    const response = await api.post("/api/v1/user/login", { email, password });
     return response.data;
   },
 };
 
 export const usersAPI = {
   getAll: async (): Promise<UsersResponse> => {
-    const response = await api.get('/admin/users');
+    const response = await api.get("/api/v1/user/getAllusers");
     return response.data;
   },
 };
 
 export const promoCodesAPI = {
   getAll: async (): Promise<PromoCodesResponse> => {
-    const response = await api.get('/admin/promocodes');
+    const response = await api.get("/api/v1/promo/getPromo");
     return response.data;
   },
-  
+
   create: async (data: CreatePromoCodeData): Promise<any> => {
-    const response = await api.post('/admin/promocodes', data);
+    const response = await api.post("/api/v1/promo/createPromo", data);
+    // console.log("response: ", response);
     return response.data;
   },
-  
+
   delete: async (id: string): Promise<any> => {
-    const response = await api.delete(`/admin/promocodes/${id}`);
+    const response = await api.delete(
+      `/api/v1/promo/deletePromo?promoCode=${id}`
+    );
+    // console.log("response: ", response);
     return response.data;
   },
-  
-  update: async (id: string, data: Partial<CreatePromoCodeData>): Promise<any> => {
-    const response = await api.put(`/admin/promocodes/${id}`, data);
+
+  update: async (
+    id: string,
+    data: Partial<CreatePromoCodeData>
+  ): Promise<any> => {
+    const response = await api.put(`/api/v1/promo/updatePromo/${id}`, data);
     return response.data;
   },
 };
