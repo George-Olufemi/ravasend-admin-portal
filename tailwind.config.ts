@@ -57,6 +57,27 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Reva brand colors
+        reva: {
+          purple: "hsl(var(--reva-purple))",
+          "purple-light": "hsl(var(--reva-purple-light))",
+          "purple-dark": "hsl(var(--reva-purple-dark))",
+          dark: "hsl(var(--reva-dark))",
+          "dark-lighter": "hsl(var(--reva-dark-lighter))",
+          "dark-card": "hsl(var(--reva-dark-card))",
+        },
+      },
+      backgroundImage: {
+        "gradient-primary": "var(--gradient-primary)",
+        "gradient-background": "var(--gradient-background)",
+        "gradient-card": "var(--gradient-card)",
+      },
+      boxShadow: {
+        glow: "var(--shadow-glow)",
+        card: "var(--shadow-card)",
+      },
+      transitionTimingFunction: {
+        smooth: "var(--transition-smooth)",
       },
       borderRadius: {
         lg: "var(--radius)",
