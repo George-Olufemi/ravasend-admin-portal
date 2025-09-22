@@ -99,7 +99,23 @@ export interface MetricsResponse {
     };
   };
 }
+export interface Fee {
+  _id: string;
+  feeName: string;
+  amount: number;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
+export interface FeeResponse {
+  message: string;
+  data: Fee[];
+}
+
+export interface CreateFeeData {
+  amount: string; // keep as string for form input, convert when sending
+}
 
 // API functions
 export const authAPI = {
@@ -148,6 +164,30 @@ export const promoCodesAPI = {
     data: Partial<CreatePromoCodeData>
   ): Promise<any> => {
     const response = await api.put(`/api/v1/promo/updatePromo/${id}`, data);
+    return response.data;
+  },
+};
+
+export const feesAPI = {
+  getAll: async (): Promise<FeeResponse> => {
+    const response = await api.get("/api/v1/receive/getFee");
+    return response.data;
+  },
+
+  create: async (data: CreateFeeData): Promise<any> => {
+    const response = await api.post("/api/v1/receive/createFee", {
+      amount: Number(data.amount),
+    });
+    return response.data;
+  },
+
+  update: async (id: string, data: Partial<CreateFeeData>): Promise<any> => {
+    const response = await api.put(`/api/v1/receive/updateFee/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<any> => {
+    const response = await api.delete(`/api/v1/receive/deleteFee/${id}`);
     return response.data;
   },
 };

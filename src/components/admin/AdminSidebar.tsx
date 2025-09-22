@@ -1,4 +1,4 @@
-import { Users, Gift, LogOut, BarChart3 } from "lucide-react";
+import { Users, Gift, LogOut, BarChart3, CircleDollarSign } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ const menuItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "Users", url: "/admin/users", icon: Users },
   { title: "Promo Codes", url: "/admin/promocodes", icon: Gift },
+  { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
 ];
 
 export function AdminSidebar() {

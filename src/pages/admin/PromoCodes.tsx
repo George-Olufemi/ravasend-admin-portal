@@ -213,7 +213,7 @@ const PromoCodes = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="transactionAmount">Min Transaction (₦)</Label>
+                  <Label htmlFor="transactionAmount">Min Transaction ($)</Label>
                   <Input
                     id="transactionAmount"
                     type="number"
