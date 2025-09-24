@@ -2,9 +2,29 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -26,15 +46,19 @@ const PromoCodes = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: promoData, isLoading, error } = useQuery({
-    queryKey: ['promocodes'],
+  const {
+    data: promoData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["promocodes"],
     queryFn: promoCodesAPI.getAll,
   });
 
   const createMutation = useMutation({
     mutationFn: promoCodesAPI.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['promocodes'] });
+      queryClient.invalidateQueries({ queryKey: ["promocodes"] });
       setIsCreateOpen(false);
       resetForm();
       toast({
@@ -46,16 +70,22 @@ const PromoCodes = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.response?.data?.message || "Failed to create promo code",
+        description:
+          error?.response?.data?.message || "Failed to create promo code",
       });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CreatePromoCodeData> }) =>
-      promoCodesAPI.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<CreatePromoCodeData>;
+    }) => promoCodesAPI.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['promocodes'] });
+      queryClient.invalidateQueries({ queryKey: ["promocodes"] });
       setEditingPromo(null);
       resetForm();
       toast({
@@ -67,7 +97,8 @@ const PromoCodes = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.response?.data?.message || "Failed to update promo code",
+        description:
+          error?.response?.data?.message || "Failed to update promo code",
       });
     },
   });
@@ -75,7 +106,7 @@ const PromoCodes = () => {
   const deleteMutation = useMutation({
     mutationFn: promoCodesAPI.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['promocodes'] });
+      queryClient.invalidateQueries({ queryKey: ["promocodes"] });
       toast({
         title: "Success",
         description: "Promo code deleted successfully!",
@@ -85,7 +116,8 @@ const PromoCodes = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.response?.data?.message || "Failed to delete promo code",
+        description:
+          error?.response?.data?.message || "Failed to delete promo code",
       });
     },
   });
@@ -101,7 +133,7 @@ const PromoCodes = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (editingPromo) {
       updateMutation.mutate({ id: editingPromo.promoCode, data: formData });
     } else {
@@ -113,7 +145,7 @@ const PromoCodes = () => {
     setEditingPromo(promo);
     setFormData({
       discount: promo.discount.toString(),
-      expiredAt: promo.expiredAt.split('T')[0],
+      expiredAt: promo.expiredAt.split("T")[0],
       maxUsage: promo.maxUsage,
       transactionAmount: promo.transactionAmount.toString(),
     });
@@ -128,10 +160,17 @@ const PromoCodes = () => {
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
+  const formatNaira = (amount: number) => {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+    }).format(amount);
+  };
+
+  const formatDollar = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount);
   };
 
@@ -152,7 +191,8 @@ const PromoCodes = () => {
       <Card className="bg-gradient-card border-border/50">
         <CardContent className="pt-6">
           <div className="text-center text-destructive">
-            Error loading promo codes: {(error as any)?.message || 'Unknown error'}
+            Error loading promo codes:{" "}
+            {(error as any)?.message || "Unknown error"}
           </div>
         </CardContent>
       </Card>
@@ -333,12 +373,12 @@ const PromoCodes = () => {
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-green-400">
-                        {formatCurrency(promo.discount)}
+                        {formatNaira(promo.discount)}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">
-                        {formatCurrency(promo.transactionAmount)}
+                        {formatDollar(promo.transactionAmount)}
                       </div>
                     </TableCell>
                     <TableCell>
