@@ -249,7 +249,7 @@ const FeePage = () => {
                 {fees.map((fee: Fee) => (
                   <TableRow key={fee._id} className="hover:bg-muted/20">
                     <TableCell>{fee._id}</TableCell>
-                    <TableCell>₦{fee.amount}</TableCell>
+                    <TableCell>${fee.amount}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
                         <Button
