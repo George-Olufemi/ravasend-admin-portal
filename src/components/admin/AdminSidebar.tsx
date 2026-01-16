@@ -1,4 +1,4 @@
-import { Users, Gift, LogOut, BarChart3, CircleDollarSign } from "lucide-react";
+import { Users, Gift, LogOut, BarChart3, CircleDollarSign, ArrowLeftRight } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 const menuItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "Users", url: "/admin/users", icon: Users },
+  { title: "Transactions", url: "/admin/transaction", icon: ArrowLeftRight },
   { title: "Promo Codes", url: "/admin/promocodes", icon: Gift },
   { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
 ];
@@ -41,11 +42,10 @@ export function AdminSidebar() {
   return (
     <Sidebar className={isCollapsed ? "w-14" : "w-60"}>
       <SidebarContent className="bg-gradient-card border-r border-border/50">
-        {/* Header */}
         <div className="p-4 border-b border-border/50">
           <div className="flex items-center gap-2">
             <div className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              {isCollapsed ? "R" : "Reva Admin"}
+              {isCollapsed ? "R" : "Ravasend Admin"}
             </div>
           </div>
         </div>

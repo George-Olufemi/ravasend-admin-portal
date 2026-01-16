@@ -27,6 +27,7 @@ export interface User {
   isVerified: boolean;
   isBlocked: boolean;
   nairaWallet: number;
+  dollarWallet: number;
   kycLevel: number;
   hasKyc: boolean;
   hasQuidaxId: boolean;
@@ -45,6 +46,33 @@ export interface LoginResponse {
 
 export interface UsersResponse {
   users: User[];
+}
+
+export interface TransactionUser {
+  _id: string;
+  fullName: string;
+  email: string;
+}
+
+export interface Transaction {
+  _id: string;
+  userId: TransactionUser;
+  source: string;
+  amount: number;
+  currency: string;
+  reference: string;
+  status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED";
+  fee: number;
+  netAmount: number;
+  cards: any[]; // empty array for now, keep flexible
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface TransactionsResponse {
+  message: string;
+  data: Transaction[];
 }
 
 export interface PromoCode {
@@ -135,6 +163,13 @@ export const metricsAPI = {
 export const usersAPI = {
   getAll: async (): Promise<UsersResponse> => {
     const response = await api.get("/api/v1/user/getAllusers");
+    return response.data;
+  },
+};
+
+export const transactionAPI = {
+  getAll: async (): Promise<TransactionsResponse> => {
+    const response = await api.get("/api/v1/admin/all-user-transactions");
     return response.data;
   },
 };

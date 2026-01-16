@@ -10,6 +10,7 @@ import Users from "./pages/admin/Users";
 import PromoCodes from "./pages/admin/PromoCodes";
 import NotFound from "./pages/NotFound";
 import Fee from "./pages/admin/Fee";
+import Transactions from "./pages/admin/Transactions";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="users" element={<Users />} />
+            <Route path="transaction" element={<Transactions />} />
             <Route path="promocodes" element={<PromoCodes />} />
             <Route path="fee" element={<Fee />} />
           </Route>

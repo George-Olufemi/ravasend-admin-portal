@@ -6,8 +6,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { usersAPI, User } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
 
 const Users = () => {
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+
   const { data: usersData, isLoading, error } = useQuery({
     queryKey: ['users'],
     queryFn: usersAPI.getAll,
@@ -51,6 +64,12 @@ const Users = () => {
 
   const users = usersData?.users || [];
 
+  const totalPages = Math.ceil(users.length / PAGE_SIZE);
+  const startIndex = (page - 1) * PAGE_SIZE;
+  const paginatedUsers = users.slice(startIndex, startIndex + PAGE_SIZE);
+
+  // console.log("users: ", users);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -60,7 +79,10 @@ const Users = () => {
             Manage and view all registered users on the platform
           </p>
         </div>
-        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+        <Badge
+          variant="outline"
+          className="bg-primary/10 text-primary border-primary/30"
+        >
           {users.length} Total Users
         </Badge>
       </div>
@@ -80,13 +102,14 @@ const Users = () => {
                   <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Wallet Balance</TableHead>
+                  <TableHead>NGN Balance</TableHead>
+                  <TableHead>USD Balance</TableHead>
                   <TableHead>KYC Level</TableHead>
                   <TableHead>Registered</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user: User) => (
+                {paginatedUsers.map((user: User) => (
                   <TableRow key={user._id} className="hover:bg-muted/20">
                     <TableCell>
                       <div className="flex items-center space-x-3">
@@ -108,7 +131,10 @@ const Users = () => {
                       <div className="space-y-1">
                         <div>{user.email}</div>
                         {user.isVerified && (
-                          <Badge variant="secondary" className="h-5 text-xs bg-green-500/20 text-green-400">
+                          <Badge
+                            variant="secondary"
+                            className="h-5 text-xs bg-green-500/20 text-green-400"
+                          >
                             Verified
                           </Badge>
                         )}
@@ -116,9 +142,13 @@ const Users = () => {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <Badge 
+                        <Badge
                           variant={user.isBlocked ? "destructive" : "default"}
-                          className={user.isBlocked ? "" : "bg-green-500/20 text-green-400"}
+                          className={
+                            user.isBlocked
+                              ? ""
+                              : "bg-green-500/20 text-green-400"
+                          }
                         >
                           {user.isBlocked ? "Blocked" : "Active"}
                         </Badge>
@@ -137,15 +167,23 @@ const Users = () => {
                       </div>
                     </TableCell>
                     <TableCell>
+                      <div className="font-medium">${user?.dollarWallet}</div>
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Badge 
-                          variant="outline" 
-                          className={user.hasKyc ? "bg-green-500/20 text-green-400" : ""}
+                        <Badge
+                          variant="outline"
+                          className={
+                            user.hasKyc ? "bg-green-500/20 text-green-400" : ""
+                          }
                         >
                           Level {user.kycLevel}
                         </Badge>
                         {user.hasKyc && (
-                          <Badge variant="secondary" className="h-5 text-xs bg-blue-500/20 text-blue-400">
+                          <Badge
+                            variant="secondary"
+                            className="h-5 text-xs bg-blue-500/20 text-blue-400"
+                          >
                             KYC Complete
                           </Badge>
                         )}
@@ -153,13 +191,61 @@ const Users = () => {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        {formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(user.createdAt), {
+                          addSuffix: true,
+                        })}
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+          </div>
+          <div className="flex items-center justify-between mt-4">
+            {/* <p className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </p> */}
+
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                    className={
+                      page === 1
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
+
+                {Array.from({ length: totalPages }).map((_, index) => {
+                  const pageNumber = index + 1;
+                  return (
+                    <PaginationItem key={pageNumber}>
+                      <PaginationLink
+                        className="cursor-pointer"
+                        isActive={page === pageNumber}
+                        onClick={() => setPage(pageNumber)}
+                      >
+                        {pageNumber}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                })}
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                    className={
+                      page === totalPages
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         </CardContent>
       </Card>

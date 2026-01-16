@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { authAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/images/reva.png"
+import logo from "@/assets/images/ravasend.png"
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -73,7 +73,7 @@ const Login = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@reva.com"
+                placeholder="admin@ravasend.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loginMutation.isPending}
