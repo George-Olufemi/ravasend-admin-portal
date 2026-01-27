@@ -101,6 +101,7 @@ const Users = () => {
                 <TableRow className="bg-muted/30">
                   <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Phone Number</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>NGN Balance</TableHead>
                   <TableHead>USD Balance</TableHead>
@@ -138,6 +139,11 @@ const Users = () => {
                             Verified
                           </Badge>
                         )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div>{user.phoneNumber}</div>
                       </div>
                     </TableCell>
                     <TableCell>
