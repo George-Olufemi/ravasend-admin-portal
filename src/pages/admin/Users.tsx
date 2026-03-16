@@ -1,7 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { usersAPI, User } from "@/lib/api";
@@ -15,29 +28,34 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 const Users = () => {
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
 
-  const { data: usersData, isLoading, error } = useQuery({
-    queryKey: ['users'],
+  const {
+    data: usersData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["users"],
     queryFn: usersAPI.getAll,
   });
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
     }).format(amount);
   };
 
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
@@ -55,7 +73,7 @@ const Users = () => {
       <Card className="bg-gradient-card border-border/50">
         <CardContent className="pt-6">
           <div className="text-center text-destructive">
-            Error loading users: {(error as any)?.message || 'Unknown error'}
+            Error loading users: {(error as any)?.message || "Unknown error"}
           </div>
         </CardContent>
       </Card>
@@ -69,6 +87,61 @@ const Users = () => {
   const paginatedUsers = users.slice(startIndex, startIndex + PAGE_SIZE);
 
   // console.log("users: ", users);
+  const downloadCSV = () => {
+    if (!users.length) return;
+
+    const headers = [
+      "ID",
+      "Full Name",
+      "Email",
+      "Phone",
+      "Username",
+      "Naira Wallet",
+      "Dollar Wallet",
+      "KYC Level",
+      "Has KYC",
+      "Verified",
+      "Blocked",
+      "Has Quidax",
+      "Referral Code",
+      "Referred By",
+      "Created At",
+      "Last Login",
+    ];
+
+    const rows = users.map((user: User) => [
+      user._id,
+      user.fullName,
+      user.email,
+      user.phoneNumber,
+      user.username,
+      user.nairaWallet,
+      user.dollarWallet,
+      user.kycLevel,
+      user.hasKyc,
+      user.isVerified,
+      user.isBlocked,
+      user.hasQuidaxId,
+      user.referralCode,
+      user.referredBy || "",
+      user.createdAt,
+      user.lastLogin || "",
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows].map((e) => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "users.csv");
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6">
@@ -79,20 +152,19 @@ const Users = () => {
             Manage and view all registered users on the platform
           </p>
         </div>
-        <Badge
-          variant="outline"
-          className="bg-primary/10 text-primary border-primary/30"
-        >
-          {users.length} Total Users
-        </Badge>
+
+        <div className="flex items-center gap-3">
+          <Button onClick={downloadCSV} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Download CSV
+          </Button>
+        </div>
       </div>
 
       <Card className="bg-gradient-card border-border/50 shadow-card">
         <CardHeader>
           <CardTitle>All Users</CardTitle>
-          <CardDescription>
-            Complete list of users registered on the Reva platform
-          </CardDescription>
+          <CardDescription>Total of {users.length} users on Ravasend</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border border-border/50 overflow-hidden">
