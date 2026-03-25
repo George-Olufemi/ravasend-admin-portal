@@ -23,7 +23,7 @@ const Login = () => {
       localStorage.setItem('reva_admin_user', JSON.stringify(data.user));
       toast({
         title: "Success",
-        description: "Login successful! Welcome to Reva Admin.",
+        description: "Login successful! Welcome to Ravasend Admin Portal",
       });
       navigate('/admin');
     },
