@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const BASE_URL = "https://backend-ymhe.onrender.com";
+const BASE_URL = "https://reva-backend-zwra.onrender.com";
+// const BASE_URL = "https://backend-ymhe.onrender.com";
 
 // Create axios instance
 export const api = axios.create({
@@ -127,6 +128,29 @@ export interface MetricsResponse {
     };
   };
 }
+
+export interface ReferralUser {
+  _id: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  dollarWallet: number;
+  createdAt: string;
+}
+
+export interface ReferralBonus {
+  _id: string;
+  userId: ReferralUser;
+  amount: number;
+}
+
+export interface ReferralBonusesResponse {
+  message: string;
+  totalAmount: number;
+  count: number;
+  data: ReferralBonus[];
+}
+
 export interface Fee {
   _id: string;
   feeName: string;
@@ -156,6 +180,13 @@ export const authAPI = {
 export const metricsAPI = {
   getAll: async (): Promise<MetricsResponse> => {
     const response = await api.get("/api/v1/admin/metrics");
+    return response.data;
+  },
+};
+
+export const referralAPI = {
+  getAll: async (): Promise<ReferralBonusesResponse> => {
+    const response = await api.get("/api/v1/admin/all-referral-bonus");
     return response.data;
   },
 };

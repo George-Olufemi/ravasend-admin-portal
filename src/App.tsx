@@ -11,6 +11,7 @@ import PromoCodes from "./pages/admin/PromoCodes";
 import NotFound from "./pages/NotFound";
 import Fee from "./pages/admin/Fee";
 import Transactions from "./pages/admin/Transactions";
+import ReferralProgram from "./pages/admin/ReferralProgram";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="transaction" element={<Transactions />} />
             <Route path="promocodes" element={<PromoCodes />} />
             <Route path="fee" element={<Fee />} />
+            <Route path="referral" element={<ReferralProgram />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

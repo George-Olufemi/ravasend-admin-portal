@@ -1,4 +1,12 @@
-import { Users, Gift, LogOut, BarChart3, CircleDollarSign, ArrowLeftRight } from "lucide-react";
+import {
+  Users,
+  Gift,
+  LogOut,
+  BarChart3,
+  CircleDollarSign,
+  ArrowLeftRight,
+  Percent
+} from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -18,7 +26,8 @@ const menuItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "Users", url: "/admin/users", icon: Users },
   { title: "Transactions", url: "/admin/transaction", icon: ArrowLeftRight },
-  { title: "Promo Codes", url: "/admin/promocodes", icon: Gift },
+  { title: "Referral Program", url: "/admin/referral", icon: Gift },
+  { title: "Promo Codes", url: "/admin/promocodes", icon: Percent },
   { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
 ];
 
@@ -26,17 +35,17 @@ export function AdminSidebar() {
   const { state } = useSidebar();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const isCollapsed = state === "collapsed";
 
   const handleLogout = () => {
-    localStorage.removeItem('reva_admin_token');
-    localStorage.removeItem('reva_admin_user');
+    localStorage.removeItem("reva_admin_token");
+    localStorage.removeItem("reva_admin_user");
     toast({
       title: "Logged out",
       description: "You have been successfully logged out.",
     });
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -59,8 +68,8 @@ export function AdminSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
+                    <NavLink
+                      to={item.url}
                       end
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-3.5 py-3 md:py-5 rounded-lg transition-all duration-200 mb-2 ${
@@ -71,7 +80,9 @@ export function AdminSidebar() {
                       }
                     >
                       <item.icon className="h-5 w-5 flex-shrink-0" />
-                      {!isCollapsed && <span className="font-medium">{item.title}</span>}
+                      {!isCollapsed && (
+                        <span className="font-medium">{item.title}</span>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
