@@ -1,7 +1,7 @@
 import axios from "axios";
 
-const BASE_URL = "https://reva-backend-zwra.onrender.com";
-// const BASE_URL = "https://backend-ymhe.onrender.com";
+// const BASE_URL = "https://reva-backend-zwra.onrender.com";
+const BASE_URL = "https://backend-ymhe.onrender.com";
 
 // Create axios instance
 export const api = axios.create({
