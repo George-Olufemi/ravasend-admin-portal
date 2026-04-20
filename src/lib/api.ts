@@ -37,6 +37,11 @@ export interface User {
   updatedAt: string;
   quidaxId?: string;
   image?: string;
+  username: string;
+  phoneNumber: string;
+  referralCode: string;
+  referredBy: string;
+  lastLogin: string;
 }
 
 export interface LoginResponse {
