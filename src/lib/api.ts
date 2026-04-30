@@ -11,6 +11,14 @@ export const api = axios.create({
   },
 });
 
+// Create axios instance without auth for promo codes getAll
+const apiNoAuth = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
 // Add auth token to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("reva_admin_token");
@@ -58,6 +66,7 @@ export interface TransactionUser {
   _id: string;
   fullName: string;
   email: string;
+  phoneNumber: string;
 }
 
 export interface Transaction {
@@ -66,6 +75,11 @@ export interface Transaction {
   source: string;
   amount: number;
   currency: string;
+  destination: string;
+  sessionId: string;
+  destinationAccountNumber: string;
+  destinationAccountName: string;
+  destionationBankName: string;
   reference: string;
   status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED";
   fee: number;
@@ -212,7 +226,7 @@ export const transactionAPI = {
 
 export const promoCodesAPI = {
   getAll: async (): Promise<PromoCodesResponse> => {
-    const response = await api.get("/api/v1/promo/getPromo");
+    const response = await apiNoAuth.get("/api/v1/promo/getPromo");
     return response.data;
   },
 

@@ -21,8 +21,9 @@ import {
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { transactionAPI } from "@/lib/api";
 import { Transaction } from "@/lib/api";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import {
   Pagination,
   PaginationContent,
@@ -63,18 +64,88 @@ const Transactions = () => {
     );
   }
 
-  const transactions = transactionsData?.data || [];
+  const transactions: Transaction[] = transactionsData?.data || [];
 
   // Pagination logic
   const totalPages = Math.ceil(transactions.length / PAGE_SIZE);
   const startIndex = (page - 1) * PAGE_SIZE;
   const paginatedData = transactions.slice(startIndex, startIndex + PAGE_SIZE);
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-    }).format(amount);
+  const formatCurrency = (amount: number | undefined) =>
+    amount !== undefined
+      ? new Intl.NumberFormat("en-NG", {
+          style: "currency",
+          currency: "NGN",
+        }).format(amount)
+      : "N/A";
+
+  // --- CSV Export ---
+  const handleDownloadCSV = () => {
+    const headers = [
+      "Transaction ID",
+      "Full Name",
+      "Email",
+      "Phone Number",
+      "Source",
+      "Amount (NGN)",
+      "Currency",
+      "Reference",
+      "Session ID",
+      "Fee (NGN)",
+      "Net Amount (NGN)",
+      "Status",
+      "Destination Account Number",
+      "Destination Account Name",
+      "Destination Bank",
+      "Date",
+    ];
+
+    const rows = transactions.map((trx) => [
+      trx._id,
+      trx.userId?.fullName ?? "",
+      trx.userId?.email ?? "",
+      trx.userId?.phoneNumber ?? "",
+      trx.source ?? "",
+      trx.amount ?? "",
+      trx.currency ?? "",
+      trx.reference ?? "",
+      trx.sessionId ?? "",
+      trx.fee ?? "",
+      trx.netAmount ?? "",
+      trx.status ?? "",
+      trx.destinationAccountNumber ?? "",
+      trx.destinationAccountName ?? "",
+      trx.destionationBankName ?? "",
+      trx.createdAt
+        ? format(new Date(trx.createdAt), "yyyy-MM-dd HH:mm:ss")
+        : "",
+    ]);
+
+    const escape = (val: string | number) => {
+      const str = String(val);
+      // Wrap in quotes if value contains comma, quote, or newline
+      if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+      return str;
+    };
+
+    const csvContent = [
+      headers.map(escape).join(","),
+      ...rows.map((row) => row.map(escape).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute(
+      "download",
+      `transactions_${format(new Date(), "yyyy-MM-dd_HH-mm")}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -86,9 +157,20 @@ const Transactions = () => {
             All user transactions on the platform
           </p>
         </div>
-        <Badge variant="outline">
-          {transactions.length} Total Transactions
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline">
+            {transactions.length} Total Transactions
+          </Badge>
+          <Button
+            onClick={handleDownloadCSV}
+            variant="outline"
+            className="flex items-center gap-2"
+            disabled={transactions.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <Card className="bg-gradient-card border-border/50 shadow-card">
@@ -109,6 +191,7 @@ const Transactions = () => {
                   <TableHead>Amount</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead>Reference</TableHead>
+                  <TableHead>Destination</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Net</TableHead>
                   <TableHead>Status</TableHead>
@@ -121,9 +204,14 @@ const Transactions = () => {
                   <TableRow key={trx._id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{trx.userId.fullName}</div>
+                        <div className="font-medium">
+                          {trx.userId?.fullName}
+                        </div>
                         <div className="text-sm text-muted-foreground">
-                          {trx.userId.email}
+                          {trx.userId?.email}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {trx.userId?.phoneNumber}
                         </div>
                       </div>
                     </TableCell>
@@ -135,12 +223,34 @@ const Transactions = () => {
                     </TableCell>
 
                     <TableCell>{trx.currency}</TableCell>
-                    <TableCell>{trx.reference}</TableCell>
-                    <TableCell>{formatCurrency(trx.fee) || "N/A"}</TableCell>
+
+                    <TableCell className="font-mono text-xs">
+                      {trx.reference}
+                    </TableCell>
 
                     <TableCell>
-                      {formatCurrency(trx.netAmount) || "N/A"}
+                      {trx.destinationAccountName ? (
+                        <div>
+                          <div className="text-sm font-medium">
+                            {trx.destinationAccountName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {trx.destinationAccountNumber}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {trx.destionationBankName}
+                          </div>
+                        </div>
+                      ) : trx.destination ? (
+                        <div className="text-sm">{trx.destination}</div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
                     </TableCell>
+
+                    <TableCell>{formatCurrency(trx.fee)}</TableCell>
+
+                    <TableCell>{formatCurrency(trx.netAmount)}</TableCell>
 
                     <TableCell>
                       <Badge
@@ -148,17 +258,17 @@ const Transactions = () => {
                           trx.status === "COMPLETED"
                             ? "default"
                             : trx.status === "FAILED"
-                            ? "destructive"
-                            : trx.status === "Processing"
-                            ? "primary"
-                            : "secondary"
+                              ? "destructive"
+                              : trx.status === "Processing"
+                                ? "secondary"
+                                : "secondary"
                         }
                       >
                         {trx.status}
                       </Badge>
                     </TableCell>
 
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm whitespace-nowrap">
                       {formatDistanceToNow(new Date(trx.createdAt), {
                         addSuffix: true,
                       })}
@@ -168,6 +278,7 @@ const Transactions = () => {
               </TableBody>
             </Table>
           </div>
+
           <div className="flex items-center justify-between mt-4">
             <Pagination>
               <PaginationContent>
