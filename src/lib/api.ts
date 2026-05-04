@@ -188,6 +188,64 @@ export interface CreateFeeData {
   amount: string; // keep as string for form input, convert when sending
 }
 
+export interface LedgerEntry {
+  _id: string;
+  userId: {
+    _id: string;
+    email: string;
+  };
+  transaction: string;
+  type: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface LedgerResponse {
+  success: boolean;
+  data: LedgerEntry[];
+}
+
+export interface UserLedgerEntry {
+  _id: string;
+  userId: string;
+  transaction: string;
+  type: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface UserLedgerResponse {
+  success: boolean;
+  data: UserLedgerEntry[];
+}
+
+export interface AuditRecord {
+  _id: string;
+  featureName: string;
+  email: string;
+  ipAddress: string;
+  browser: string;
+  device: string;
+  location: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface AuditsResponse {
+  success: boolean;
+  message: string;
+  data: AuditRecord[];
+}
+
 // API functions
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
@@ -276,3 +334,34 @@ export const feesAPI = {
     return response.data;
   },
 };
+
+export const ledgerAPI = {
+  getAll: async (): Promise<LedgerResponse> => {
+    const response = await api.get("/api/v1/ledger/getAdminGetAllLedger");
+    return response.data;
+  },
+  viewuserledger: async (id: string): Promise<UserLedgerResponse> => {
+    const response = await api.get(`/api/v1/ledger/getLedger/${id}`);
+    // console.log("response: ", response);
+    return response.data;
+  },
+}
+
+export const auditsAPI = {
+  getAll: async (): Promise<AuditsResponse> => {
+    const response = await api.get("/api/v1/user/getAllAudits");
+    return response.data;
+  }
+}
+
+export const eventsAPI = {
+  getAll: async (): Promise<FeeResponse> => {
+    const response = await api.get("/api/v1/user/getAllEvents");
+    return response.data;
+  },
+  getanevent: async (id: string): Promise<any> => {
+    const response = await api.get(`/api/v1/event/events/${id}`);
+    // console.log("response: ", response);
+    return response.data;
+  }
+}

@@ -5,7 +5,10 @@ import {
   BarChart3,
   CircleDollarSign,
   ArrowLeftRight,
-  Percent
+  Percent,
+  Sheet,
+  Shield,
+  CalendarCog
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
@@ -21,6 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+{/* <BrickWallShield />; */}
 
 const menuItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
@@ -28,6 +32,9 @@ const menuItems = [
   { title: "Transactions", url: "/admin/transaction", icon: ArrowLeftRight },
   { title: "Referral Program", url: "/admin/referral", icon: Gift },
   { title: "Promo Codes", url: "/admin/promocodes", icon: Percent },
+  { title: "Ledger", url: "/admin/ledger", icon: Sheet },
+  { title: "Audits", url: "/admin/audits", icon: Shield },
+  // { title: "Events", url: "/admin/events", icon: CalendarCog },
   { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
 ];
 
