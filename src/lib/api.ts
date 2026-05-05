@@ -284,8 +284,19 @@ export const transactionAPI = {
 
 export const promoCodesAPI = {
   getAll: async (): Promise<PromoCodesResponse> => {
-    const response = await apiNoAuth.get("/api/v1/promo/getPromo");
-    return response.data;
+    try {
+      const response = await apiNoAuth.get("/api/v1/promo/getPromo");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message:
+            error.response?.data?.message || "No active promos found",
+          data: [],
+        };
+      }
+      throw error; // let real errors bubble up
+    }
   },
 
   create: async (data: CreatePromoCodeData): Promise<any> => {

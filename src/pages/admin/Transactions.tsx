@@ -148,7 +148,7 @@ const Transactions = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -173,7 +173,7 @@ const Transactions = () => {
         </div>
       </div>
 
-      <Card className="bg-gradient-card border-border/50 shadow-card">
+      <Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
         <CardHeader>
           <CardTitle>Transaction History</CardTitle>
           <CardDescription>
@@ -181,8 +181,8 @@ const Transactions = () => {
           </CardDescription>
         </CardHeader>
 
-        <CardContent>
-          <div className="rounded-md border overflow-hidden">
+        <CardContent className="flex-1 overflow-hidden p-0 md:p-6">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -278,49 +278,52 @@ const Transactions = () => {
               </TableBody>
             </Table>
           </div>
+          {transactions.length > 0 && totalPages > 1 && (
+            <div className="flex items-center justify-center mt-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                      className={
+                        page === 1
+                          ? "pointer-events-none opacity-50"
+                          : "cursor-pointer"
+                      }
+                    />
+                  </PaginationItem>
 
-          <div className="flex items-center justify-between mt-4">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                    className={
-                      page === 1
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, index) => {
+                    const pageNumber = index + 1;
+                    return (
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          className="cursor-pointer"
+                          isActive={page === pageNumber}
+                          onClick={() => setPage(pageNumber)}
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
 
-                {Array.from({ length: totalPages }).map((_, index) => {
-                  const pageNumber = index + 1;
-                  return (
-                    <PaginationItem key={pageNumber}>
-                      <PaginationLink
-                        className="cursor-pointer"
-                        isActive={page === pageNumber}
-                        onClick={() => setPage(pageNumber)}
-                      >
-                        {pageNumber}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-                    className={
-                      page === totalPages
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() =>
+                        setPage((p) => Math.min(p + 1, totalPages))
+                      }
+                      className={
+                        page === totalPages
+                          ? "pointer-events-none opacity-50"
+                          : "cursor-pointer"
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

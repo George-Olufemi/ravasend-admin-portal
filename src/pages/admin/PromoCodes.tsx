@@ -188,11 +188,10 @@ const PromoCodes = () => {
 
   if (error) {
     return (
-      <Card className="bg-gradient-card border-border/50">
+      <Card>
         <CardContent className="pt-6">
           <div className="text-center text-destructive">
-            Error loading promo codes:{" "}
-            {(error as any)?.message || "Unknown error"}
+            Something went wrong. Please try again.
           </div>
         </CardContent>
       </Card>
@@ -341,114 +340,130 @@ const PromoCodes = () => {
         </CardHeader>
         <CardContent>
           <div className="rounded-md border border-border/50 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead>Code</TableHead>
-                  <TableHead>Discount</TableHead>
-                  <TableHead>Min Transaction</TableHead>
-                  <TableHead>Usage</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {promoCodes.map((promo: PromoCode) => (
-                  <TableRow key={promo._id} className="hover:bg-muted/20">
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <code className="px-2 py-1 bg-muted/50 rounded text-sm font-mono">
-                          {promo.promoCode}
-                        </code>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleCopyCode(promo.promoCode)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-green-400">
-                        {formatNaira(promo.discount)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">
-                        {formatDollar(promo.transactionAmount)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>
-                          {promo.usageCount} / {promo.maxUsage}
-                        </div>
-                        <div className="text-muted-foreground">
-                          {((promo.usageCount / promo.maxUsage) * 100).toFixed(
-                            0
-                          )}
-                          % used
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          isExpired(promo.expiredAt)
-                            ? "destructive"
-                            : promo.usageCount >= promo.maxUsage
-                            ? "secondary"
-                            : "default"
-                        }
-                        className={
-                          !isExpired(promo.expiredAt) &&
-                          promo.usageCount < promo.maxUsage
-                            ? "bg-green-500/20 text-green-400"
-                            : ""
-                        }
-                      >
-                        {isExpired(promo.expiredAt)
-                          ? "Expired"
-                          : promo.usageCount >= promo.maxUsage
-                          ? "Used Up"
-                          : "Active"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {formatDistanceToNow(new Date(promo.expiredAt), {
-                          addSuffix: true,
-                        })}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(promo)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteMutation.mutate(promo.promoCode)}
-                          disabled={deleteMutation.isPending}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {promoCodes.length === 0 ? (
+              <>
+                <div className="text-center py-10">
+                  <div className="text-muted-foreground text-center">
+                    {promoData?.message || "No promo codes available"}
+                  </div>
+                </div>
+              </>
+            ) : (
+              promoCodes.map((promo: PromoCode) => (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead>Code</TableHead>
+                      <TableHead>Discount</TableHead>
+                      <TableHead>Min Transaction</TableHead>
+                      <TableHead>Usage</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {promoCodes.map((promo: PromoCode) => (
+                      <TableRow key={promo._id} className="hover:bg-muted/20">
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <code className="px-2 py-1 bg-muted/50 rounded text-sm font-mono">
+                              {promo.promoCode}
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleCopyCode(promo.promoCode)}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-green-400">
+                            {formatNaira(promo.discount)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">
+                            {formatDollar(promo.transactionAmount)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <div>
+                              {promo.usageCount} / {promo.maxUsage}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {(
+                                (promo.usageCount / promo.maxUsage) *
+                                100
+                              ).toFixed(0)}
+                              % used
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              isExpired(promo.expiredAt)
+                                ? "destructive"
+                                : promo.usageCount >= promo.maxUsage
+                                  ? "secondary"
+                                  : "default"
+                            }
+                            className={
+                              !isExpired(promo.expiredAt) &&
+                              promo.usageCount < promo.maxUsage
+                                ? "bg-green-500/20 text-green-400"
+                                : ""
+                            }
+                          >
+                            {isExpired(promo.expiredAt)
+                              ? "Expired"
+                              : promo.usageCount >= promo.maxUsage
+                                ? "Used Up"
+                                : "Active"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {formatDistanceToNow(new Date(promo.expiredAt), {
+                              addSuffix: true,
+                            })}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEdit(promo)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                deleteMutation.mutate(promo.promoCode)
+                              }
+                              disabled={deleteMutation.isPending}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                // your existing row
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
