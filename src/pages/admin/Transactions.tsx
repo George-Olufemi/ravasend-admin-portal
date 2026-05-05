@@ -123,7 +123,6 @@ const Transactions = () => {
 
     const escape = (val: string | number) => {
       const str = String(val);
-      // Wrap in quotes if value contains comma, quote, or newline
       if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
       return str;
     };
@@ -150,7 +149,7 @@ const Transactions = () => {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
           <p className="text-muted-foreground">
@@ -182,7 +181,7 @@ const Transactions = () => {
         </CardHeader>
 
         <CardContent className="flex-1 overflow-hidden p-0 md:p-6">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -200,84 +199,98 @@ const Transactions = () => {
               </TableHeader>
 
               <TableBody>
-                {paginatedData.map((trx: Transaction) => (
-                  <TableRow key={trx._id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {trx.userId?.fullName}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {trx.userId?.email}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {trx.userId?.phoneNumber}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="capitalize">{trx.source}</TableCell>
-
-                    <TableCell className="font-medium">
-                      {formatCurrency(trx.amount)}
-                    </TableCell>
-
-                    <TableCell>{trx.currency}</TableCell>
-
-                    <TableCell className="font-mono text-xs">
-                      {trx.reference}
-                    </TableCell>
-
-                    <TableCell>
-                      {trx.destinationAccountName ? (
-                        <div>
-                          <div className="text-sm font-medium">
-                            {trx.destinationAccountName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {trx.destinationAccountNumber}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {trx.destionationBankName}
-                          </div>
-                        </div>
-                      ) : trx.destination ? (
-                        <div className="text-sm">{trx.destination}</div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
-                    </TableCell>
-
-                    <TableCell>{formatCurrency(trx.fee)}</TableCell>
-
-                    <TableCell>{formatCurrency(trx.netAmount)}</TableCell>
-
-                    <TableCell>
-                      <Badge
-                        variant={
-                          trx.status === "COMPLETED"
-                            ? "default"
-                            : trx.status === "FAILED"
-                              ? "destructive"
-                              : trx.status === "Processing"
-                                ? "secondary"
-                                : "secondary"
-                        }
-                      >
-                        {trx.status}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {formatDistanceToNow(new Date(trx.createdAt), {
-                        addSuffix: true,
-                      })}
+                {paginatedData.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={10}
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      No transactions found.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  paginatedData.map((trx: Transaction) => (
+                    <TableRow key={trx._id} className="hover:bg-muted/20">
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">
+                            {trx.userId?.fullName}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {trx.userId?.email}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {trx.userId?.phoneNumber}
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="capitalize">{trx.source}</TableCell>
+
+                      <TableCell className="font-medium">
+                        {formatCurrency(trx.amount)}
+                      </TableCell>
+
+                      <TableCell>{trx.currency}</TableCell>
+
+                      <TableCell className="font-mono text-xs">
+                        {trx.reference}
+                      </TableCell>
+
+                      <TableCell>
+                        {trx.destinationAccountName ? (
+                          <div>
+                            <div className="text-sm font-medium">
+                              {trx.destinationAccountName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {trx.destinationAccountNumber}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {trx.destionationBankName}
+                            </div>
+                          </div>
+                        ) : trx.destination ? (
+                          <div className="text-sm">{trx.destination}</div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell>{formatCurrency(trx.fee)}</TableCell>
+
+                      <TableCell>{formatCurrency(trx.netAmount)}</TableCell>
+
+                      <TableCell>
+                        <Badge
+                          variant={
+                            trx.status === "COMPLETED"
+                              ? "default"
+                              : trx.status === "FAILED"
+                                ? "destructive"
+                                : trx.status === "Processing"
+                                  ? "secondary"
+                                  : "secondary"
+                          }
+                        >
+                          {trx.status}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {formatDistanceToNow(new Date(trx.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
+
           {transactions.length > 0 && totalPages > 1 && (
             <div className="flex items-center justify-center mt-4">
               <Pagination>
@@ -293,20 +306,47 @@ const Transactions = () => {
                     />
                   </PaginationItem>
 
-                  {Array.from({ length: totalPages }).map((_, index) => {
-                    const pageNumber = index + 1;
-                    return (
-                      <PaginationItem key={pageNumber}>
+                  {Array.from({ length: Math.min(totalPages, 5) }).map(
+                    (_, index) => {
+                      let pageNumber = index + 1;
+                      if (totalPages > 5) {
+                        if (page <= 3) {
+                          pageNumber = index + 1;
+                        } else if (page >= totalPages - 2) {
+                          pageNumber = totalPages - 4 + index;
+                        } else {
+                          pageNumber = page - 2 + index;
+                        }
+                      }
+                      return (
+                        <PaginationItem key={pageNumber}>
+                          <PaginationLink
+                            className="cursor-pointer"
+                            isActive={page === pageNumber}
+                            onClick={() => setPage(pageNumber)}
+                          >
+                            {pageNumber}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    },
+                  )}
+
+                  {totalPages > 5 && page < totalPages - 2 && (
+                    <>
+                      <PaginationItem>
+                        <span className="px-2">...</span>
+                      </PaginationItem>
+                      <PaginationItem>
                         <PaginationLink
                           className="cursor-pointer"
-                          isActive={page === pageNumber}
-                          onClick={() => setPage(pageNumber)}
+                          onClick={() => setPage(totalPages)}
                         >
-                          {pageNumber}
+                          {totalPages}
                         </PaginationLink>
                       </PaginationItem>
-                    );
-                  })}
+                    </>
+                  )}
 
                   <PaginationItem>
                     <PaginationNext
