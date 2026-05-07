@@ -71,13 +71,28 @@ const Transactions = () => {
   const startIndex = (page - 1) * PAGE_SIZE;
   const paginatedData = transactions.slice(startIndex, startIndex + PAGE_SIZE);
 
-  const formatCurrency = (amount: number | undefined) =>
-    amount !== undefined
-      ? new Intl.NumberFormat("en-NG", {
-          style: "currency",
-          currency: "NGN",
-        }).format(amount)
-      : "N/A";
+const FIAT_CURRENCIES = ["NGN", "USD", "EUR", "GBP"];
+
+const formatAmount = (
+  amount: number | undefined,
+  currency: string | undefined,
+) => {
+  if (amount === undefined) return "N/A";
+  const cur = (currency ?? "NGN").toUpperCase();
+
+  if (FIAT_CURRENCIES.includes(cur)) {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: cur,
+    }).format(amount);
+  }
+
+  // For crypto or swap pairs (e.g. "USDC TO NGN"), extract the base token
+  const cryptoMatch = cur.match(/^([A-Z]+)/);
+  const ticker = cryptoMatch ? cryptoMatch[1] : cur;
+
+  return `${new Intl.NumberFormat("en-NG").format(amount)} ${ticker}`;
+};
 
   // --- CSV Export ---
   const handleDownloadCSV = () => {
@@ -228,7 +243,7 @@ const Transactions = () => {
                       <TableCell className="capitalize">{trx.source}</TableCell>
 
                       <TableCell className="font-medium">
-                        {formatCurrency(trx.amount)}
+                        {formatAmount(trx.amount, trx.currency)}
                       </TableCell>
 
                       <TableCell>{trx.currency}</TableCell>
@@ -259,9 +274,14 @@ const Transactions = () => {
                         )}
                       </TableCell>
 
-                      <TableCell>{formatCurrency(trx.fee)}</TableCell>
+                      <TableCell>
+                        
+                        <TableCell>{formatAmount(trx.fee, "NGN")}</TableCell>
+                      </TableCell>
 
-                      <TableCell>{formatCurrency(trx.netAmount)}</TableCell>
+                      <TableCell>
+                        {formatAmount(trx.netAmount, trx.currency)}
+                      </TableCell>
 
                       <TableCell>
                         <Badge
