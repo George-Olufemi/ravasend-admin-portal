@@ -275,7 +275,6 @@ const formatAmount = (
                       </TableCell>
 
                       <TableCell>
-                        
                         <TableCell>{formatAmount(trx.fee, "NGN")}</TableCell>
                       </TableCell>
 
@@ -288,11 +287,15 @@ const formatAmount = (
                           variant={
                             trx.status === "COMPLETED"
                               ? "default"
-                              : trx.status === "FAILED"
-                                ? "destructive"
-                                : trx.status === "Processing"
-                                  ? "secondary"
-                                  : "secondary"
+                              : trx.status === "Done"
+                                ? "default"
+                                : trx.status === "accepted"
+                                  ? "default"
+                                  : trx.status === "FAILED"
+                                    ? "destructive"
+                                    : trx.status === "Processing"
+                                      ? "secondary"
+                                      : "secondary"
                           }
                         >
                           {trx.status}
