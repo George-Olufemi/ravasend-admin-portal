@@ -324,12 +324,66 @@ export const promoCodesAPI = {
 
 export const feesAPI = {
   getAll: async (): Promise<FeeResponse> => {
-    const response = await api.get("/api/v1/receive/getFee");
-    return response.data;
+    try {
+      const response = await api.get("/api/v1/receive/getFee");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message: error.response?.data?.message || "No fees found",
+          data: [],
+        };
+      }
+      throw error;
+    }
+  },
+
+  getAllForexFee: async (): Promise<FeeResponse> => {
+    try {
+      const response = await api.get("/api/v1/receive/getForexFee");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message: error.response?.data?.message || "No forex fees found",
+          data: [],
+        };
+      }
+      throw error;
+    }
+  },
+
+  getAllWithdrawalFees: async (): Promise<FeeResponse> => {
+    try {
+      const response = await api.get("/api/v1/receive/getWithdrawalFee");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message: error.response?.data?.message || "No withdrawal fees found",
+          data: [],
+        };
+      }
+      throw error;
+    }
   },
 
   create: async (data: CreateFeeData): Promise<any> => {
     const response = await api.post("/api/v1/receive/createFee", {
+      amount: Number(data.amount),
+    });
+    return response.data;
+  },
+
+  createForexFee: async (data: CreateFeeData): Promise<any> => {
+    const response = await api.post("/api/v1/receive/createForexFee", {
+      amount: Number(data.amount),
+    });
+    return response.data;
+  },
+
+  createWithdrawalFee: async (data: CreateFeeData): Promise<any> => {
+    const response = await api.post("/api/v1/receive/createWithdrawalFee", {
       amount: Number(data.amount),
     });
     return response.data;
