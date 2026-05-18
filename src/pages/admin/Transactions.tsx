@@ -243,7 +243,8 @@ const formatAmount = (
                       <TableCell className="capitalize">{trx.source}</TableCell>
 
                       <TableCell className="font-medium">
-                        {formatAmount(trx.amount, trx.currency)}
+                        {/* {formatAmount(trx.amount, trx.currency)} */}
+                        {trx.amount.toLocaleString()}
                       </TableCell>
 
                       <TableCell>{trx.currency}</TableCell>
