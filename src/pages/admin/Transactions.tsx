@@ -280,7 +280,8 @@ const formatAmount = (
                       </TableCell>
 
                       <TableCell>
-                        {formatAmount(trx.netAmount, trx.currency)}
+                        {/* {formatAmount(trx.netAmount, trx.currency)} */}
+                        {trx.netAmount.toLocaleString()}
                       </TableCell>
 
                       <TableCell>
