@@ -439,13 +439,13 @@ const FeePage = () => {
                 </span>
               </TabsTrigger>
               <TabsTrigger value="forex">
-                Forex Fee
+                Foreign Bank Transfer Fee
                 <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
                   {feeData?.forex?.length || 0}
                 </span>
               </TabsTrigger>
               <TabsTrigger value="withdrawal">
-                Withdrawal Fee
+                Local Bank Transfer Fee
                 <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
                   {feeData?.withdrawal?.length || 0}
                 </span>

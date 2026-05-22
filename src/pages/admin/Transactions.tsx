@@ -71,28 +71,28 @@ const Transactions = () => {
   const startIndex = (page - 1) * PAGE_SIZE;
   const paginatedData = transactions.slice(startIndex, startIndex + PAGE_SIZE);
 
-const FIAT_CURRENCIES = ["NGN", "USD", "EUR", "GBP"];
+  const FIAT_CURRENCIES = ["NGN", "USD", "EUR", "GBP"];
 
-const formatAmount = (
-  amount: number | undefined,
-  currency: string | undefined,
-) => {
-  if (amount === undefined) return "N/A";
-  const cur = (currency ?? "NGN").toUpperCase();
+  const formatAmount = (
+    amount: number | undefined,
+    currency: string | undefined,
+  ) => {
+    if (amount === undefined) return "N/A";
+    const cur = (currency ?? "NGN").toUpperCase();
 
-  if (FIAT_CURRENCIES.includes(cur)) {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: cur,
-    }).format(amount);
-  }
+    if (FIAT_CURRENCIES.includes(cur)) {
+      return new Intl.NumberFormat("en-NG", {
+        style: "currency",
+        currency: cur,
+      }).format(amount);
+    }
 
-  // For crypto or swap pairs (e.g. "USDC TO NGN"), extract the base token
-  const cryptoMatch = cur.match(/^([A-Z]+)/);
-  const ticker = cryptoMatch ? cryptoMatch[1] : cur;
+    // For crypto or swap pairs (e.g. "USDC TO NGN"), extract the base token
+    const cryptoMatch = cur.match(/^([A-Z]+)/);
+    const ticker = cryptoMatch ? cryptoMatch[1] : cur;
 
-  return `${new Intl.NumberFormat("en-NG").format(amount)} ${ticker}`;
-};
+    return `${new Intl.NumberFormat("en-NG").format(amount)} ${ticker}`;
+  };
 
   // --- CSV Export ---
   const handleDownloadCSV = () => {
@@ -289,15 +289,19 @@ const formatAmount = (
                           variant={
                             trx.status === "COMPLETED"
                               ? "default"
-                              : trx.status === "Done"
+                              : trx.status === "SUCCESSFUL"
                                 ? "default"
-                                : trx.status === "accepted"
+                                : trx.status === "completed"
                                   ? "default"
-                                  : trx.status === "FAILED"
-                                    ? "destructive"
-                                    : trx.status === "Processing"
-                                      ? "secondary"
-                                      : "secondary"
+                                  : trx.status === "Done"
+                                    ? "default"
+                                    : trx.status === "accepted"
+                                      ? "default"
+                                      : trx.status === "FAILED"
+                                        ? "destructive"
+                                        : trx.status === "Processing"
+                                          ? "secondary"
+                                          : "secondary"
                           }
                         >
                           {trx.status}

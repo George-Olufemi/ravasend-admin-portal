@@ -81,10 +81,10 @@ export interface Transaction {
   destinationAccountName: string;
   destionationBankName: string;
   reference: string;
-  status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED" | "Done" | "accepted";
+  status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED" | "Done" | "accepted" | "completed" | "SUCCESSFUL";
   fee: number;
   netAmount: number;
-  cards: any[]; // empty array for now, keep flexible
+  cards: any[]; // empty array for now, keep flexible`
   createdAt: string;
   updatedAt: string;
   __v: number;
