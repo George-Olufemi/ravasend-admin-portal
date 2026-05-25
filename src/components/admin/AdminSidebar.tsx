@@ -8,9 +8,10 @@ import {
   Percent,
   Sheet,
   Shield,
-  CalendarCog
+  ChevronDown,
 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -24,26 +25,28 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-{/* <BrickWallShield />; */}
 
 const menuItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "Users", url: "/admin/users", icon: Users },
   { title: "Transactions", url: "/admin/transaction", icon: ArrowLeftRight },
-  { title: "Referral Program", url: "/admin/referral", icon: Gift },
   { title: "Promo Codes", url: "/admin/promocodes", icon: Percent },
   { title: "Ledger", url: "/admin/ledger", icon: Sheet },
   { title: "Audits", url: "/admin/audits", icon: Shield },
-  // { title: "Events", url: "/admin/events", icon: CalendarCog },
   { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
 ];
 
 export function AdminSidebar() {
   const { state } = useSidebar();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const [isReferralOpen, setIsReferralOpen] = useState(true);
 
   const isCollapsed = state === "collapsed";
+  const isReferralActive = location.pathname === "/admin/referral";
+  const currentTab =
+    new URLSearchParams(location.search).get("tab") ?? "overview";
 
   const handleLogout = () => {
     localStorage.removeItem("reva_admin_token");
@@ -72,6 +75,7 @@ export function AdminSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              {/* Regular menu items — exactly as they were before */}
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
@@ -94,11 +98,73 @@ export function AdminSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* Referral Program — same active style, with dropdown */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/admin/referral?tab=overview"
+                    onClick={() => setIsReferralOpen(true)}
+                    className={() =>
+                      `flex items-center gap-3 px-3.5 py-3 md:py-5 rounded-lg transition-all duration-200 mb-2 ${
+                        isReferralActive
+                          ? "bg-primary/20 text-primary border border-primary/30 shadow-glow"
+                          : "hover:bg-secondary/50 text-foreground"
+                      }`
+                    }
+                  >
+                    <Gift className="h-5 w-5 flex-shrink-0" />
+                    {!isCollapsed && (
+                      <>
+                        <span className="font-medium">Referral Program</span>
+                        <span
+                          className="ml-auto rounded-md p-1 transition hover:bg-background/70"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsReferralOpen((o) => !o);
+                          }}
+                        >
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${
+                              isReferralOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </span>
+                      </>
+                    )}
+                  </NavLink>
+                </SidebarMenuButton>
+
+                {!isCollapsed && isReferralOpen && (
+                  <div className="ml-6 mt-1 mb-2 flex flex-col gap-1">
+                    <NavLink
+                      to="/admin/referral?tab=overview"
+                      className={`flex items-center px-3.5 py-2 rounded-lg transition-all duration-200 text-sm border ${
+                        isReferralActive && currentTab === "overview"
+                          ? "bg-primary/15 text-primary border-primary/30 font-medium"
+                          : "border-transparent text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      }`}
+                    >
+                      Overview
+                    </NavLink>
+                    <NavLink
+                      to="/admin/referral?tab=details"
+                      className={`flex items-center px-3.5 py-2 rounded-lg transition-all duration-200 text-sm border ${
+                        isReferralActive && currentTab === "details"
+                          ? "bg-primary/15 text-primary border-primary/30 font-medium"
+                          : "border-transparent text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      }`}
+                    >
+                      User Details
+                    </NavLink>
+                  </div>
+                )}
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Logout Button */}
         <div className="mt-auto p-4 border-t border-border/50">
           <Button
             onClick={handleLogout}

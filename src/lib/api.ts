@@ -170,6 +170,44 @@ export interface ReferralBonusesResponse {
   data: ReferralBonus[];
 }
 
+export interface ReferralDetailUser {
+  _id: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+}
+
+export interface ReferralDetailBonus {
+  billPaymentBonus: boolean;
+  bonus30Paid: boolean;
+  bonus100Paid: boolean;
+  bonus500Paid: boolean;
+  bonus1000Paid: boolean;
+}
+
+export interface ReferralDetailRecord {
+  id: string;
+  user: ReferralDetailUser;
+  referredBy: ReferralDetailUser | null;
+  amount: number;
+  status: string;
+  type: string;
+  title: string | null;
+  description: string | null;
+  locked: number;
+  withdrawn: boolean;
+  bonus: ReferralDetailBonus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReferralDetailsResponse {
+  success: boolean;
+  message: string;
+  count: number;
+  data: ReferralDetailRecord[];
+}
+
 export interface Fee {
   _id: string;
   feeName: string;
@@ -264,6 +302,10 @@ export const metricsAPI = {
 export const referralAPI = {
   getAll: async (): Promise<ReferralBonusesResponse> => {
     const response = await api.get("/api/v1/admin/all-referral-bonus");
+    return response.data;
+  },
+  getAllReferralDetails: async (): Promise<ReferralDetailsResponse> => {
+    const response = await api.get("/api/v1/admin/all-referral-details");
     return response.data;
   },
 };
