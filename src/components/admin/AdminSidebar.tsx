@@ -41,7 +41,7 @@ export function AdminSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const [isReferralOpen, setIsReferralOpen] = useState(true);
+  const [isReferralOpen, setIsReferralOpen] = useState(false);
 
   const isCollapsed = state === "collapsed";
   const isReferralActive = location.pathname === "/admin/referral";
