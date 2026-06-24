@@ -229,45 +229,49 @@ const Transactions = () => {
                       <TableCell>
                         <div>
                           <div className="font-medium">
-                            {trx.userId?.fullName}
+                            {trx.userId?.fullName ?? "-"}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {trx.userId?.email}
+                            {trx.userId?.email ?? "-"}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {trx.userId?.phoneNumber}
+                            {trx.userId?.phoneNumber ?? "-"}
                           </div>
                         </div>
                       </TableCell>
 
-                      <TableCell className="capitalize">{trx.source}</TableCell>
+                      <TableCell className="capitalize">
+                        {trx.source ?? "-"}
+                      </TableCell>
 
                       <TableCell className="font-medium">
                         {/* {formatAmount(trx.amount, trx.currency)} */}
-                        {trx.amount.toLocaleString()}
+                        {trx.amount?.toLocaleString() ?? "-"}
                       </TableCell>
 
-                      <TableCell>{trx.currency}</TableCell>
+                      <TableCell>{trx.currency ?? "-"}</TableCell>
 
                       <TableCell className="font-mono text-xs">
-                        {trx.reference}
+                        {trx.reference ?? "-"}
                       </TableCell>
 
                       <TableCell>
                         {trx.destinationAccountName ? (
                           <div>
                             <div className="text-sm font-medium">
-                              {trx.destinationAccountName}
+                              {trx.destinationAccountName ?? "-"}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {trx.destinationAccountNumber}
+                              {trx.destinationAccountNumber ?? "-"}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {trx.destionationBankName}
+                              {trx.destionationBankName ?? "-"}
                             </div>
                           </div>
                         ) : trx.destination ? (
-                          <div className="text-sm">{trx.destination}</div>
+                          <div className="text-sm">
+                            {trx.destination ?? "-"}
+                          </div>
                         ) : (
                           <span className="text-muted-foreground text-xs">
                             —
@@ -281,7 +285,7 @@ const Transactions = () => {
 
                       <TableCell>
                         {/* {formatAmount(trx.netAmount, trx.currency)} */}
-                        {trx.netAmount.toLocaleString()}
+                        {trx.netAmount?.toLocaleString() ?? "-"}
                       </TableCell>
 
                       <TableCell>
@@ -289,29 +293,39 @@ const Transactions = () => {
                           variant={
                             trx.status === "COMPLETED"
                               ? "default"
-                              : trx.status === "SUCCESSFUL"
+                              : trx.status === "SUCCESS"
                                 ? "default"
-                                : trx.status === "completed"
+                                : trx.status === "done"
                                   ? "default"
-                                  : trx.status === "Done"
-                                    ? "default"
-                                    : trx.status === "accepted"
-                                      ? "default"
-                                      : trx.status === "FAILED"
-                                        ? "destructive"
-                                        : trx.status === "Processing"
-                                          ? "secondary"
-                                          : "secondary"
+                                  : trx.status === "Pending"
+                                    ? "primary"
+                                    : trx.status === "pending"
+                                      ? "primary"
+                                      : trx.status === "SUCCESSFUL"
+                                        ? "default"
+                                        : trx.status === "completed"
+                                          ? "default"
+                                          : trx.status === "Done"
+                                            ? "default"
+                                            : trx.status === "accepted"
+                                              ? "default"
+                                              : trx.status === "FAILED"
+                                                ? "destructive"
+                                                : trx.status === "Processing"
+                                                  ? "secondary"
+                                                  : "secondary"
                           }
                         >
-                          {trx.status}
+                          {trx.status ?? "-"}
                         </Badge>
                       </TableCell>
 
                       <TableCell className="text-sm whitespace-nowrap">
-                        {formatDistanceToNow(new Date(trx.createdAt), {
-                          addSuffix: true,
-                        })}
+                        {trx.createdAt
+                          ? formatDistanceToNow(new Date(trx.createdAt), {
+                              addSuffix: true,
+                            })
+                          : "-"}
                       </TableCell>
                     </TableRow>
                   ))

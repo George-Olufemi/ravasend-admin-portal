@@ -81,7 +81,7 @@ export interface Transaction {
   destinationAccountName: string;
   destionationBankName: string;
   reference: string;
-  status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED" | "Done" | "accepted" | "completed" | "SUCCESSFUL";
+  status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED" | "Done" | "accepted" | "completed" | "SUCCESSFUL" | "pending" | "Pending" | "SUCCESS" | "done";
   fee: number;
   netAmount: number;
   cards: any[]; // empty array for now, keep flexible`
