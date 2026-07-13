@@ -287,7 +287,7 @@ export interface AuditsResponse {
 // API functions
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    const response = await api.post("/api/v1/user/login", { email, password });
+    const response = await api.post("/api/v1/admin/admin-login", { email, password });
     return response.data;
   },
 };
