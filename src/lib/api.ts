@@ -239,6 +239,8 @@ export interface LedgerEntry {
   balanceAfter: number;
   createdAt: string;
   updatedAt: string;
+  currency: string;
+  cryptoAmount: number;
   __v: number;
 }
 
