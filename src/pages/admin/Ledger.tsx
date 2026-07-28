@@ -28,7 +28,14 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
-import { Download, Search, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import {
+  Download,
+  Search,
+  X,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Coins,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -36,6 +43,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+
+// userId can come back populated ({_id, email}) from the all-ledger endpoint,
+// or as a plain string id from the per-user ledger endpoint.
+const getUserId = (entry: LedgerEntry): string | undefined =>
+  typeof entry.userId === "string" ? entry.userId : entry.userId?._id;
+
+const getUserEmail = (entry: LedgerEntry): string | undefined =>
+  typeof entry.userId === "string" ? undefined : entry.userId?.email;
 
 const Ledger = () => {
   const PAGE_SIZE = 10;
@@ -66,11 +81,12 @@ const Ledger = () => {
     const lowerSearch = searchTerm.toLowerCase();
     return entries.filter(
       (entry: LedgerEntry) =>
-        entry.userId?.email?.toLowerCase().includes(lowerSearch) ||
-        entry.userId?._id?.toLowerCase().includes(lowerSearch) ||
+        getUserEmail(entry)?.toLowerCase().includes(lowerSearch) ||
+        getUserId(entry)?.toLowerCase().includes(lowerSearch) ||
         entry.type?.toLowerCase().includes(lowerSearch) ||
         entry._id?.toLowerCase().includes(lowerSearch) ||
-        entry.transaction?.toLowerCase().includes(lowerSearch),
+        entry.transaction?.toLowerCase().includes(lowerSearch) ||
+        entry.currency?.toLowerCase().includes(lowerSearch),
     );
   }, [entries, searchTerm]);
 
@@ -101,6 +117,14 @@ const Ledger = () => {
     }).format(amount);
   };
 
+  // Crypto amounts should NOT be run through the NGN Intl formatter —
+  // just show the raw quantity with up to 8 decimal places, trimmed.
+  const formatCrypto = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 8,
+    }).format(amount);
+  };
+
   const isDebit = (type: string) => type?.toUpperCase().startsWith("DEBIT");
   const isCredit = (type: string) =>
     type?.toUpperCase().startsWith("DEPOSIT") ||
@@ -110,6 +134,76 @@ const Ledger = () => {
     if (isDebit(type)) return "Debit";
     if (isCredit(type)) return "Credit";
     return "Other";
+  };
+
+  // Some entries carry `amount` denominated in NGN (e.g. airtime debits, or
+  // crypto swapped INTO NGN) — those should show the ₦ sign. Others carry
+  // `amount` denominated directly in the crypto currency itself (e.g. a raw
+  // "Crypto Deposit - USDC" credit, where amount === cryptoAmount) — those
+  // should NOT get a ₦ sign, just the crypto currency code.
+  const isNgnAmount = (entry: { currency?: string; type?: string }) => {
+    if (!entry.currency) return true; // no currency field => plain NGN entry
+    const currency = entry.currency.toUpperCase();
+    if (currency === "NGN") return true;
+    // e.g. "DEPOSIT - Crypto Swap usdt to NGN" -> amount was converted to NGN
+    if (entry.type?.toLowerCase().includes("to ngn")) return true;
+    return false; // amount is denominated in the crypto currency itself
+  };
+
+  // Renders the transaction amount with the correct denomination, plus a
+  // supplementary crypto pill only when the crypto amount is genuinely
+  // extra info (i.e. amount itself is already in NGN, not the same figure).
+  const AmountDisplay = ({
+    entry,
+    signClass,
+    sign = "",
+  }: {
+    entry: {
+      amount: number;
+      cryptoAmount?: number;
+      currency?: string;
+      type?: string;
+    };
+    signClass: string;
+    sign?: string;
+  }) => {
+    const ngn = isNgnAmount(entry);
+    return (
+      <>
+        <span className={`font-semibold ${signClass}`}>
+          {ngn
+            ? `${sign}${formatCurrency(entry.amount)}`
+            : `${sign}${formatCrypto(entry.amount)} ${entry.currency?.toUpperCase()}`}
+        </span>
+        {ngn && (
+          <CryptoPill
+            cryptoAmount={entry.cryptoAmount}
+            currency={entry.currency}
+          />
+        )}
+      </>
+    );
+  };
+
+  // Small reusable pill for "26 USDC" / "1.46413136 usdt" etc.
+  const CryptoPill = ({
+    cryptoAmount,
+    currency,
+  }: {
+    cryptoAmount?: number;
+    currency?: string;
+  }) => {
+    if (cryptoAmount === undefined || cryptoAmount === null || !currency)
+      return null;
+    return (
+      <Badge
+        variant="outline"
+        className="mt-1 bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1 w-fit text-[10px] font-normal"
+      >
+        <Coins className="h-3 w-3" />
+        {formatCrypto(cryptoAmount)} {currency.toUpperCase()}
+      </Badge>
+    );
   };
 
   const downloadCSV = () => {
@@ -122,6 +216,8 @@ const Ledger = () => {
       "Transaction ID",
       "Type",
       "Amount",
+      "Crypto Amount",
+      "Crypto Currency",
       "Balance Before",
       "Balance After",
       "Created At",
@@ -129,11 +225,13 @@ const Ledger = () => {
 
     const rows = filteredEntries.map((entry: LedgerEntry) => [
       entry._id,
-      entry.userId?._id,
-      entry.userId?.email,
+      getUserId(entry) || "",
+      getUserEmail(entry) || "",
       entry.transaction,
       `"${entry.type}"`, // wrap in quotes in case of commas in type string
       entry.amount,
+      entry.cryptoAmount ?? "",
+      entry.currency ?? "",
       entry.balanceBefore,
       entry.balanceAfter,
       entry.createdAt,
@@ -191,7 +289,7 @@ const Ledger = () => {
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by email, type, ID..."
+              placeholder="Search by email, type, ID, currency..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8 pr-8"
@@ -251,18 +349,20 @@ const Ledger = () => {
                       key={entry._id}
                       className="hover:bg-muted/20 cursor-pointer transition"
                       onClick={() => {
-                        setSelectedUserId(entry.userId._id);
-                        setSelectedUserEmail(entry.userId.email);
+                        const uid = getUserId(entry);
+                        if (!uid) return;
+                        setSelectedUserId(uid);
+                        setSelectedUserEmail(getUserEmail(entry) || uid);
                         setIsSheetOpen(true);
                       }}
                     >
                       <TableCell>
                         <div className="space-y-0.5">
                           <div className="text-sm font-medium">
-                            {entry.userId?.email || "—"}
+                            {getUserEmail(entry) || "—"}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ID: {entry.userId?._id?.slice(-6) || "—"}
+                            ID: {getUserId(entry)?.slice(-6) || "—"}
                           </div>
                         </div>
                       </TableCell>
@@ -301,24 +401,18 @@ const Ledger = () => {
                         </div>
                       </TableCell>
 
-                      {/* Amount */}
+                      {/* Amount — NGN gets ₦, crypto-denominated gets its own currency code */}
                       <TableCell>
-                        <span
-                          className={`font-semibold ${
+                        <AmountDisplay
+                          entry={entry}
+                          signClass={
                             isDebit(entry.type)
                               ? "text-red-400"
                               : isCredit(entry.type)
                                 ? "text-green-400"
                                 : ""
-                          }`}
-                        >
-                          {isDebit(entry.type)
-                            ? ""
-                            : isCredit(entry.type)
-                              ? ""
-                              : ""}
-                          {formatCurrency(entry.amount)}
-                        </span>
+                          }
+                        />
                       </TableCell>
 
                       {/* Balance Before */}
@@ -468,18 +562,19 @@ const Ledger = () => {
                         </span>
                       </div>
 
-                      <span
-                        className={`font-semibold ${
-                          debit
-                            ? "text-red-400"
-                            : credit
-                              ? "text-green-400"
-                              : ""
-                        }`}
-                      >
-                        {debit ? "−" : credit ? "+" : ""}
-                        {formatCurrency(item.amount)}
-                      </span>
+                      <div className="text-right">
+                        <AmountDisplay
+                          entry={item}
+                          signClass={
+                            debit
+                              ? "text-red-400"
+                              : credit
+                                ? "text-green-400"
+                                : ""
+                          }
+                          sign={debit ? "−" : credit ? "+" : ""}
+                        />
+                      </div>
                     </div>
 
                     {/* Description */}
