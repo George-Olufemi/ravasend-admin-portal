@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // const BASE_URL = "https://reva-backend-zwra.onrender.com";
-const BASE_URL = "https://backend-a0w6.onrender.com";
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 // Create axios instance
 export const api = axios.create({
@@ -239,6 +239,8 @@ export interface LedgerEntry {
   balanceAfter: number;
   createdAt: string;
   updatedAt: string;
+  currency: string;
+  cryptoAmount: number;
   __v: number;
 }
 
