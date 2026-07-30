@@ -34,6 +34,7 @@ const menuItems = [
   { title: "Ledger", url: "/admin/ledger", icon: Sheet },
   { title: "Audits", url: "/admin/audits", icon: Shield },
   { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
+  { title: "Referral Downline", url: "/admin/referraldownline", icon: Gift },
 ];
 
 export function AdminSidebar() {

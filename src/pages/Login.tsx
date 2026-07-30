@@ -9,10 +9,12 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { authAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/images/ravasend.png"
+import { Eye, EyeOff } from "lucide-react";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -52,7 +54,6 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-background">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10" />
-
       <Card className="w-full max-w-md relative z-10 shadow-card border-border/50 bg-gradient-card backdrop-blur-sm">
         <CardHeader className="text-center space-y-2">
           <div className="flex items-center justify-center mb-4">
@@ -83,15 +84,30 @@ const Login = () => {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loginMutation.isPending}
-                className="bg-input/50 border-border/50 focus:border-primary/50 focus:ring-primary/25"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loginMutation.isPending}
+                  className="pr-10 bg-input/50 border-border/50 focus:border-primary/50 focus:ring-primary/25"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={loginMutation.isPending}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <Button

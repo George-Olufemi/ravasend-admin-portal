@@ -289,7 +289,7 @@ export interface AuditsResponse {
 // API functions
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    const response = await api.post("/api/v1/admin/admin-login", { email, password });
+    const response = await api.post("/api/v1/user/login", { email, password });
     return response.data;
   },
 };
@@ -308,6 +308,26 @@ export const referralAPI = {
   },
   getAllReferralDetails: async (): Promise<ReferralDetailsResponse> => {
     const response = await api.get("/api/v1/admin/all-referral-details");
+    return response.data;
+  },
+  getAllReferralDownline: async (searchTerm: string) => {
+    // Determine what type of search we're doing
+    const isEmail = searchTerm.includes('@') && searchTerm.includes('.');
+    const isReferralCode = /^[A-Z0-9]{6}$/.test(searchTerm); // Adjust pattern based on your referral code format
+    const isUsername = !isEmail && !isReferralCode;
+
+    const payload = {
+      referralCode: isReferralCode ? searchTerm : undefined,
+      email: isEmail ? searchTerm : undefined,
+      username: isUsername ? searchTerm : undefined
+    };
+
+    // Remove undefined values
+    Object.keys(payload).forEach(key =>
+      payload[key as keyof typeof payload] === undefined && delete payload[key as keyof typeof payload]
+    );
+
+    const response = await api.post("/api/v1/referral/referralDownline", payload);
     return response.data;
   },
 };
