@@ -306,8 +306,21 @@ export const referralAPI = {
     const response = await api.get("/api/v1/admin/all-referral-bonus");
     return response.data;
   },
+
   getAllReferralDetails: async (): Promise<ReferralDetailsResponse> => {
     const response = await api.get("/api/v1/admin/all-referral-details");
+    return response.data;
+  },
+
+  getAllReferralDownline: async (params: {
+    email?: string;
+    referralCode?: string;
+    username?: string;
+  }) => {
+    const response = await api.get("/api/v1/referral/referralDownline", {
+      params,
+    });
+
     return response.data;
   },
 };

@@ -15,6 +15,7 @@ import ReferralProgram from "./pages/admin/ReferralProgram";
 import Ledger from "./pages/admin/Ledger";
 import Audits from "./pages/admin/Audits";
 import Events from "./pages/admin/Events";
+import ReferralDownline from "./pages/admin/ReferralDownline";
 
 const queryClient = new QueryClient();
 
@@ -36,7 +37,7 @@ const App = () => (
             <Route path="referral" element={<ReferralProgram />} />
             <Route path="ledger" element={<Ledger />} />
             <Route path="audits" element={<Audits />} />
-            {/* <Route path="events" element={<Events />} /> */}
+            <Route path="referraldownline" element={<ReferralDownline />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
