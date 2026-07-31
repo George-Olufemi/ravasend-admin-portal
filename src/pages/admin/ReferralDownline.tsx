@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import {
-  Download,
   Search,
   X,
   Users,
@@ -43,6 +42,8 @@ import {
   User,
   Mail,
   Hash,
+  DollarSign,
+  Bitcoin,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,7 +53,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Types based on the referral downline response
+// --- Types ---
 interface ReferralDownlineUser {
   id: string;
   fullName: string;
@@ -60,9 +61,18 @@ interface ReferralDownlineUser {
   referralCode: string;
 }
 
+interface WalletUser {
+  _id: string;
+  fullName: string;
+  email: string;
+  nairaWallet: number;
+  dollarWallet: number;
+  cryptoWallet: number;
+}
+
 interface ReferralDownlineWallet {
   _id: string;
-  userId: string | ReferralDownlineUser;
+  userId: WalletUser;
   amount: number;
   status: string;
   lockedAmount: number;
@@ -142,11 +152,19 @@ interface ReferralDownlineData {
   };
 }
 
+// --- Component ---
 const ReferralDownline = () => {
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
+
+  const getSearchParams = (search: string) => {
+    if (!search) return {};
+    if (search.includes("@")) return { email: search };
+    if (/^[A-Z0-9]{6}$/.test(search)) return { referralCode: search };
+    return { username: search };
+  };
 
   const {
     data: referralData,
@@ -155,7 +173,8 @@ const ReferralDownline = () => {
     refetch,
   } = useQuery({
     queryKey: ["referralDownline", activeSearch],
-    queryFn: () => referralAPI.getAllReferralDownline(activeSearch),
+    queryFn: () =>
+      referralAPI.getAllReferralDownline(getSearchParams(activeSearch)),
     enabled: !!activeSearch,
     staleTime: 2 * 60 * 1000,
     retry: 1,
@@ -218,7 +237,6 @@ const ReferralDownline = () => {
     navigator.clipboard.writeText(text);
   };
 
-  // Paginate invited users
   const invitedUsers = data?.invitedUsers || [];
   const totalPages = Math.ceil(invitedUsers.length / PAGE_SIZE);
   const startIndex = (page - 1) * PAGE_SIZE;
@@ -227,7 +245,6 @@ const ReferralDownline = () => {
     startIndex + PAGE_SIZE,
   );
 
-  // Adjust page if it exceeds total pages after filtering
   useEffect(() => {
     if (page > totalPages && totalPages > 0) {
       setPage(totalPages);
@@ -240,6 +257,12 @@ const ReferralDownline = () => {
     return value !== undefined && value !== null && value !== ""
       ? value
       : fallback;
+  };
+
+  // --- FIX: restrict helper to numeric fields only ---
+  type WalletNumericField = "nairaWallet" | "dollarWallet" | "cryptoWallet";
+  const getWalletBalance = (field: WalletNumericField): number => {
+    return data?.wallet?.userId?.[field] ?? 0;
   };
 
   return (
@@ -334,21 +357,21 @@ const ReferralDownline = () => {
         </Card>
       ) : (
         <>
-          {/* Stats Cards - with safe fallbacks */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="bg-gradient-card border-border/50 shadow-card">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Total Invited
+                      Naira Wallet
                     </p>
-                    <p className="text-2xl font-bold">
-                      {safeData(data.totalInvited, 0)}
+                    <p className="text-2xl font-bold text-emerald-400">
+                      {formatCurrency(getWalletBalance("nairaWallet"))}
                     </p>
                   </div>
-                  <div className="p-3 rounded-full bg-blue-500/20">
-                    <Users className="h-6 w-6 text-blue-400" />
+                  <div className="p-3 rounded-full bg-emerald-500/20">
+                    <Wallet className="h-6 w-6 text-emerald-400" />
                   </div>
                 </div>
               </CardContent>
@@ -359,14 +382,50 @@ const ReferralDownline = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Wallet Balance
+                      Dollar Wallet
+                    </p>
+                    <p className="text-2xl font-bold text-cyan-400">
+                      ${getWalletBalance("dollarWallet").toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-cyan-500/20">
+                    <DollarSign className="h-6 w-6 text-cyan-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-card border-border/50 shadow-card">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Crypto Wallet
+                    </p>
+                    <p className="text-2xl font-bold text-purple-400">
+                      {getWalletBalance("cryptoWallet").toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-purple-500/20">
+                    <Bitcoin className="h-6 w-6 text-purple-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-card border-border/50 shadow-card">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Referral Bonus
                     </p>
                     <p className="text-2xl font-bold text-green-400">
                       {formatCurrency(data.wallet?.amount || 0)}
                     </p>
                   </div>
                   <div className="p-3 rounded-full bg-green-500/20">
-                    <Wallet className="h-6 w-6 text-green-400" />
+                    <Gift className="h-6 w-6 text-green-400" />
                   </div>
                 </div>
               </CardContent>
@@ -389,32 +448,9 @@ const ReferralDownline = () => {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Total Bonuses
-                    </p>
-                    <p className="text-2xl font-bold text-yellow-400">
-                      {formatCurrency(
-                        (data.referralBonuses || []).reduce(
-                          (sum, b) => sum + (b?.amount || 0),
-                          0,
-                        ),
-                      )}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-yellow-500/20">
-                    <Award className="h-6 w-6 text-yellow-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* User Profile Card - with safe fallbacks */}
+          {/* User Profile Card */}
           <Card className="bg-gradient-card border-border/50 shadow-card">
             <CardHeader>
               <CardTitle>User Information</CardTitle>
@@ -490,7 +526,29 @@ const ReferralDownline = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t border-border">
+              {/* Wallet breakdown */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 pt-4 border-t border-border">
+                <div>
+                  <p className="text-xs text-muted-foreground">Naira Wallet</p>
+                  <p className="text-lg font-semibold text-emerald-400">
+                    {formatCurrency(getWalletBalance("nairaWallet"))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Dollar Wallet</p>
+                  <p className="text-lg font-semibold text-cyan-400">
+                    ${getWalletBalance("dollarWallet").toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Crypto Wallet</p>
+                  <p className="text-lg font-semibold text-purple-400">
+                    {getWalletBalance("cryptoWallet").toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
                 <div>
                   <p className="text-xs text-muted-foreground">Bonus 30</p>
                   <Badge
