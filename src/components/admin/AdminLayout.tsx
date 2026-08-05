@@ -20,7 +20,7 @@ const AdminLayout = () => {
             <SidebarTrigger className="text-foreground hover:bg-secondary/50" />
             <div className="ml-4">
               <h1 className="text-xl font-semibold">Admin Dashboard</h1>
-            </div>
+            </div>          
           </header>
           
           {/* Main Content */}

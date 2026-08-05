@@ -286,6 +286,12 @@ export interface AuditsResponse {
   data: AuditRecord[];
 }
 
+export interface WithdrawalStatusResponse {
+  success: boolean;
+  isWithdrawalPaused: boolean;
+  message?: string;
+}
+
 // API functions
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
@@ -487,3 +493,18 @@ export const eventsAPI = {
     return response.data;
   }
 }
+
+export const systemSettingsAPI = {
+  // Fetch current pause state
+  getWithdrawalPauseStatus: async (): Promise<WithdrawalStatusResponse> => {
+    const response = await api.get("/api/v1/admin/system/withdrawal-status");
+    return response.data;
+  },
+  // Toggle pause state (true = paused, false = active)
+  toggleWithdrawalPause: async (paused: boolean): Promise<WithdrawalStatusResponse> => {
+    const response = await api.post("/api/v1/admin/system/toggle-withdrawal-pause", {
+      paused,
+    });
+    return response.data;
+  },
+};

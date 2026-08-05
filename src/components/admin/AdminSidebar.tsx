@@ -9,6 +9,7 @@ import {
   Sheet,
   Shield,
   ChevronDown,
+  ShieldAlert
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
@@ -34,7 +35,8 @@ const menuItems = [
   { title: "Ledger", url: "/admin/ledger", icon: Sheet },
   { title: "Audits", url: "/admin/audits", icon: Shield },
   { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
-  { title: "Referral Downline", url: "/admin/referraldownline", icon: Gift },
+  { title: "Referral Downline", url: "/admin/referral-downline", icon: Gift },
+  { title: "Withdrawal Controls", url: "/admin/withdrawal-control", icon: ShieldAlert   },
 ];
 
 export function AdminSidebar() {
