@@ -495,16 +495,18 @@ export const eventsAPI = {
 }
 
 export const systemSettingsAPI = {
-  // Fetch current pause state
-  getWithdrawalPauseStatus: async (): Promise<WithdrawalStatusResponse> => {
-    const response = await api.get("/api/v1/admin/system/withdrawal-status");
+  getWithdrawalPauseStatus: async () => {
+    const response = await api.get("/api/v1/access-control/access-control-status");
     return response.data;
   },
-  // Toggle pause state (true = paused, false = active)
-  toggleWithdrawalPause: async (paused: boolean): Promise<WithdrawalStatusResponse> => {
-    const response = await api.post("/api/v1/admin/system/toggle-withdrawal-pause", {
-      paused,
-    });
+
+  toggleWithdrawalPause: async () => {
+    const response = await api.post("/api/v1/access-control/system-access-control");
+    return response.data;
+  },
+
+    getWithdrawalPauseAuditLog: async () => {
+    const response = await api.get("/api/v1/user/getAllAudits");
     return response.data;
   },
 };

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -6,21 +7,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { CirclePause, CirclePlay, Lock, LockOpen } from "lucide-react";
+import { CirclePause, CirclePlay, Lock, LockOpen, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,82 +22,142 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { systemSettingsAPI } from "@/lib/api";
 
-// Mock audit log data
-const auditLog = [
-  {
-    id: 1,
-    action: "PAUSED",
-    timestamp: "2026-07-02T14:23:11",
-    actor: "Chukwuemeka Obi (Super Admin)",
-    reason: "Suspicious withdrawal batch detected",
-  },
-  {
-    id: 2,
-    action: "RESUMED",
-    timestamp: "2026-07-02T16:47:33",
-    actor: "Chukwuemeka Obi (Super Admin)",
-    reason: "Investigation complete — no breach confirmed",
-  },
-  {
-    id: 3,
-    action: "PAUSED",
-    timestamp: "2026-06-18T09:12:05",
-    actor: "Adoro Nwosu (Organization Lead)",
-    reason: "",
-  },
-];
-
-// Type for modal action
 type ModalAction = "pause" | "resume";
+type ControlType = "highValue" | "flagged" | "palmpay" | "newAccount" | "killSwitch";
 
-// Type for which control is being toggled
-type ControlType =
-  | "highValue"
-  | "flagged"
-  | "palmpay"
-  | "newAccount";
+// ── Response types (based on what you shared) ──
+interface AccessControlStatus {
+  _id: string;
+  userId: {
+    _id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    role: string;
+  };
+  isPermitted: boolean; // true = withdrawals active, false = paused
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AccessControlStatusResponse {
+  message: string;
+  data: AccessControlStatus;
+}
+
+interface AuditLogEntry {
+  _id: string;
+  userId: {
+    _id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    role: string;
+  };
+  featureName: string; // e.g. "System access control disabled by user: Chad Lamb"
+  email: string;
+  ipAddress: string;
+  browser: string;
+  device: string;
+  location: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AuditLogResponse {
+  success: boolean;
+  message: string;
+  data: AuditLogEntry[];
+}
+
+const WITHDRAWAL_STATUS_QUERY_KEY = ["withdrawal-pause-status"] as const;
+const WITHDRAWAL_AUDIT_LOG_QUERY_KEY = ["withdrawal-pause-audit-log"] as const;
+
+// Derive PAUSED/RESUMED + a friendly label from the raw featureName string
+const parseAuditEntry = (entry: AuditLogEntry) => {
+  const isPause = entry.featureName.toLowerCase().includes("disabled");
+  return {
+    action: isPause ? "PAUSED" : "RESUMED",
+    label: isPause ? "Withdrawal Paused" : "Withdrawal Resumed",
+  };
+};
 
 const WithdrawalControls = () => {
-  // State for granular controls
-  const [highValuePaused, setHighValuePaused] = useState(false);
-  const [flaggedPaused, setFlaggedPaused] = useState(false);
-  const [palmpayPaused, setPalmpayPaused] = useState(false);
-  const [newAccountPaused, setNewAccountPaused] = useState(false);
+  const queryClient = useQueryClient();
 
-  // State for threshold editing
+  // ── Status query ──
+  const {
+    data: statusResponse,
+    isLoading: isStatusLoading,
+    isError: isStatusError,
+  } = useQuery<AccessControlStatusResponse>({
+    queryKey: WITHDRAWAL_STATUS_QUERY_KEY,
+    queryFn: systemSettingsAPI.getWithdrawalPauseStatus,
+  });
+
+  const statusData = statusResponse?.data;
+  const killSwitchActive = statusData?.isPermitted ?? false; // true = active
+  const isKillSwitchPaused = !killSwitchActive;
+
+  // The 3 server-driven toggles mirror the single isPermitted flag
+  const highValuePaused = isKillSwitchPaused;
+  const flaggedPaused = isKillSwitchPaused;
+  const newAccountPaused = isKillSwitchPaused;
+
+  // PalmPay stays local — not controlled by the status endpoint
+  const [palmpayPaused, setPalmpayPaused] = useState(false);
+
+  // ── Audit log query ──
+  const {
+    data: auditLogResponse,
+    isLoading: isAuditLoading,
+    isError: isAuditError,
+  } = useQuery<AuditLogResponse>({
+    queryKey: WITHDRAWAL_AUDIT_LOG_QUERY_KEY,
+    queryFn: systemSettingsAPI.getWithdrawalPauseAuditLog,
+  });
+
+  const auditLog = auditLogResponse?.data ?? [];
+
+  // Threshold editing (still local — no backend field for this yet)
   const [thresholdValue, setThresholdValue] = useState("N100,000");
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
   const [tempThreshold, setTempThreshold] = useState("N100,000");
 
-  // Modal states
+  // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [modalControl, setModalControl] = useState<ControlType>("highValue");
   const [modalAction, setModalAction] = useState<ModalAction>("pause");
   const [modalReason, setModalReason] = useState("");
 
-  // For the kill switch, we just show status (static for now)
-  const killSwitchActive = true;
+  // ── Mutation ──
+  const toggleMutation = useMutation({
+    mutationFn: systemSettingsAPI.toggleWithdrawalPause,
+    onSuccess: () => {
+      // Backend doesn't return the updated doc in a predictable shape here,
+      // and the audit log is a separate collection anyway — refetch both.
+      queryClient.invalidateQueries({ queryKey: WITHDRAWAL_STATUS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: WITHDRAWAL_AUDIT_LOG_QUERY_KEY });
+      setModalOpen(false);
+    },
+  });
 
-  // Handle threshold edit
   const handleThresholdEdit = () => {
     setTempThreshold(thresholdValue);
     setIsEditingThreshold(true);
   };
-
   const handleThresholdApply = () => {
     setThresholdValue(tempThreshold);
     setIsEditingThreshold(false);
   };
-
   const handleThresholdCancel = () => {
     setTempThreshold(thresholdValue);
     setIsEditingThreshold(false);
   };
 
-  // Function to open modal when a switch is toggled
   const handleToggle = (control: ControlType, currentState: boolean) => {
-    // Determine action: if currently false, we want to pause; if true, resume
     const action: ModalAction = currentState ? "resume" : "pause";
     setModalControl(control);
     setModalAction(action);
@@ -114,66 +165,92 @@ const WithdrawalControls = () => {
     setModalOpen(true);
   };
 
-  // Function to confirm the action
   const handleConfirm = () => {
-    // Update the appropriate state based on control and action
-    // action: if pause, set to true; if resume, set to false
-    const newState = modalAction === "pause";
-    switch (modalControl) {
-      case "highValue":
-        setHighValuePaused(newState);
-        break;
-      case "flagged":
-        setFlaggedPaused(newState);
-        break;
-      case "palmpay":
-        setPalmpayPaused(newState);
-        break;
-      case "newAccount":
-        setNewAccountPaused(newState);
-        break;
+    if (modalControl === "palmpay") {
+      setPalmpayPaused(modalAction === "pause");
+      setModalOpen(false);
+      return;
     }
-    // Here you would also save the reason to the audit log (API call, etc.)
-    console.log(
-      `${modalAction.toUpperCase()} ${modalControl} with reason: ${modalReason}`
-    );
-    setModalOpen(false);
+    // killSwitch, highValue, flagged, newAccount all flip the same server flag
+    toggleMutation.mutate();
   };
-
-  // Get content for modal based on control
+  // Get content for modal — now action-aware, so copy matches pause vs resume
   const getModalContent = () => {
+    const isResume = modalAction === "resume";
+
     switch (modalControl) {
+      case "killSwitch":
+        return isResume
+          ? {
+            title: "Resume all withdrawals",
+            description: "Withdrawal processing will return to normal platform-wide.",
+            extra: null,
+          }
+          : {
+            title: "Pause all withdrawals",
+            description: "This halts every withdrawal on the platform immediately.",
+            extra: null,
+          };
       case "highValue":
-        return {
-          title: "Pause withdrawals above N100,000",
-          description:
-            "Hold high-value transfers only — amounts exceeding the threshold are queued.",
-          extra: <div className="mt-2 flex items-center gap-2 text-sm">
-            <span className="font-medium">Threshold:</span>
-            <Input type="text" value="N100,000" className="w-32 h-8 text-sm" disabled />
-          </div>,
-        };
+        return isResume
+          ? {
+            title: "Resume withdrawals above N100,000",
+            description:
+              "High-value transfers exceeding the threshold will process normally again.",
+            extra: (
+              <div className="mt-2 flex items-center gap-2 text-sm">
+                <span className="font-medium">Threshold:</span>
+                <Input type="text" value={thresholdValue} className="w-32 h-8 text-sm" disabled />
+              </div>
+            ),
+          }
+          : {
+            title: "Pause withdrawals above N100,000",
+            description:
+              "Hold high-value transfers only — amounts exceeding the threshold are queued.",
+            extra: (
+              <div className="mt-2 flex items-center gap-2 text-sm">
+                <span className="font-medium">Threshold:</span>
+                <Input type="text" value={thresholdValue} className="w-32 h-8 text-sm" disabled />
+              </div>
+            ),
+          };
       case "flagged":
-        return {
-          title: "Pause withdrawals for flagged accounts",
-          description:
-            "Hold all outbound requests from accounts with active fraud flags.",
-          extra: null,
-        };
+        return isResume
+          ? {
+            title: "Resume withdrawals for flagged accounts",
+            description: "Accounts with active fraud flags will be able to withdraw again.",
+            extra: null,
+          }
+          : {
+            title: "Pause withdrawals for flagged accounts",
+            description: "Hold all outbound requests from accounts with active fraud flags.",
+            extra: null,
+          };
       case "palmpay":
-        return {
-          title: "Pause PalmPay channel only",
-          description:
-            "Block PalmPay as a payout channel while all other methods continue.",
-          extra: null,
-        };
+        return isResume
+          ? {
+            title: "Resume PalmPay channel",
+            description: "PalmPay will be available as a payout channel again.",
+            extra: null,
+          }
+          : {
+            title: "Pause PalmPay channel only",
+            description: "Block PalmPay as a payout channel while all other methods continue.",
+            extra: null,
+          };
       case "newAccount":
-        return {
-          title: "Pause for new accounts (< 7 days)",
-          description:
-            "Hold withdrawals from accounts created within the last 7 days.",
-          extra: null,
-        };
+        return isResume
+          ? {
+            title: "Resume for new accounts",
+            description: "Accounts created within the last 7 days can withdraw again.",
+            extra: null,
+          }
+          : {
+            title: "Pause for new accounts (< 7 days)",
+            description: "Hold withdrawals from accounts created within the last 7 days.",
+            extra: null,
+          };
     }
   };
 
@@ -183,9 +260,7 @@ const WithdrawalControls = () => {
     <div className="h-full flex flex-col space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Withdrawal Controls
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Withdrawal Controls</h1>
           <p className="text-muted-foreground">
             Platform-wide withdrawal management and emergency kill switch
           </p>
@@ -197,34 +272,62 @@ const WithdrawalControls = () => {
         <CardContent>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-6">
             <div className="flex items-center gap-4">
-              <div className="bg-green-300/10 h-16 w-16 rounded-lg flex justify-center items-center">
-                <LockOpen className="text-green-600 size-8" />
+              <div
+                className={`h-16 w-16 rounded-lg flex justify-center items-center ${killSwitchActive ? "bg-green-300/10" : "bg-red-300/10"
+                  }`}
+              >
+                {isStatusLoading ? (
+                  <Loader2 className="animate-spin size-8 text-muted-foreground" />
+                ) : killSwitchActive ? (
+                  <LockOpen className="text-green-600 size-8" />
+                ) : (
+                  <Lock className="text-red-600 size-8" />
+                )}
               </div>
               <div className="flex flex-col gap-2">
                 <h2 className="text-xl font-semibold">Withdrawal Kill Switch</h2>
-                <p
-                  className={
-                    killSwitchActive
-                      ? "text-green-500 text-sm font-semibold"
-                      : "text-red-500 text-sm font-semibold"
-                  }
-                >
-                  {killSwitchActive
-                    ? "✓ ACTIVE — Processing normally"
-                    : "✗ PAUSED — All withdrawals halted"}
-                </p>
-                <span className="text-xs text-muted-foreground">
-                  Last changed by{" "}
-                  <span className="text-white font-semibold">
-                    Chukwuemeka Obi
-                  </span>{" "}
-                  · Jul 2, 2026 at 14:23
-                </span>
+                {isStatusLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading status…</p>
+                ) : isStatusError ? (
+                  <p className="text-sm text-red-500 font-semibold">✗ Failed to load status</p>
+                ) : (
+                  <p
+                    className={
+                      killSwitchActive
+                        ? "text-green-500 text-sm font-semibold"
+                        : "text-red-500 text-sm font-semibold"
+                    }
+                  >
+                    {killSwitchActive
+                      ? "✓ ACTIVE — Processing normally"
+                      : "✗ PAUSED — All withdrawals halted"}
+                  </p>
+                )}
+                {statusData?.userId?.fullName && (
+                  <span className="text-xs text-muted-foreground">
+                    Last changed by{" "}
+                    <span className="text-white font-semibold">
+                      {statusData.userId.fullName}
+                    </span>{" "}
+                    · {format(new Date(statusData.updatedAt), "MMM d, yyyy 'at' HH:mm")}
+                  </span>
+                )}
               </div>
             </div>
-            <Button variant="destructive" size="sm" className="">
-              <CirclePause />
-              Pause All Withdrawals
+            <Button
+              variant={killSwitchActive ? "destructive" : "default"}
+              size="sm"
+              disabled={isStatusLoading || toggleMutation.isPending}
+              onClick={() => handleToggle("killSwitch", isKillSwitchPaused)}
+            >
+              {toggleMutation.isPending && modalControl === "killSwitch" ? (
+                <Loader2 className="animate-spin" />
+              ) : killSwitchActive ? (
+                <CirclePause />
+              ) : (
+                <CirclePlay />
+              )}
+              {killSwitchActive ? "Pause All Withdrawals" : "Resume All Withdrawals"}
             </Button>
           </div>
         </CardContent>
@@ -235,8 +338,7 @@ const WithdrawalControls = () => {
         <CardHeader>
           <CardTitle>Granular Controls</CardTitle>
           <CardDescription>
-            Fine-grained pause options without full platform shutdown — each
-            requires a reason
+            Fine-grained pause options without full platform shutdown — each requires a reason
           </CardDescription>
         </CardHeader>
         <hr className="border-border/50" />
@@ -248,8 +350,7 @@ const WithdrawalControls = () => {
                 <div>
                   <h4 className="font-medium">Pause withdrawals above N100,000</h4>
                   <p className="text-sm text-muted-foreground">
-                    Hold high-value transfers only — amounts exceeding the
-                    threshold are queued.
+                    Hold high-value transfers only — amounts exceeding the threshold are queued.
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-sm font-medium">Threshold:</span>
@@ -262,20 +363,10 @@ const WithdrawalControls = () => {
                           className="w-32 h-8 text-sm"
                           autoFocus
                         />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleThresholdApply}
-                          className="h-8 px-3 text-xs"
-                        >
+                        <Button size="sm" variant="outline" onClick={handleThresholdApply} className="h-8 px-3 text-xs">
                           Apply
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={handleThresholdCancel}
-                          className="h-8 px-3 text-xs"
-                        >
+                        <Button size="sm" variant="ghost" onClick={handleThresholdCancel} className="h-8 px-3 text-xs">
                           Cancel
                         </Button>
                       </div>
@@ -288,12 +379,7 @@ const WithdrawalControls = () => {
                           disabled
                           onClick={handleThresholdEdit}
                         />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={handleThresholdEdit}
-                          className="h-8 px-2 text-xs"
-                        >
+                        <Button size="sm" variant="ghost" onClick={handleThresholdEdit} className="h-8 px-2 text-xs">
                           Edit
                         </Button>
                       </div>
@@ -302,9 +388,8 @@ const WithdrawalControls = () => {
                 </div>
                 <Switch
                   checked={highValuePaused}
-                  onCheckedChange={() =>
-                    handleToggle("highValue", highValuePaused)
-                  }
+                  disabled={isStatusLoading || toggleMutation.isPending}
+                  onCheckedChange={() => handleToggle("highValue", highValuePaused)}
                 />
               </div>
             </div>
@@ -317,19 +402,15 @@ const WithdrawalControls = () => {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-medium">
-                    Pause withdrawals for flagged accounts
-                  </h4>
+                  <h4 className="font-medium">Pause withdrawals for flagged accounts</h4>
                   <p className="text-sm text-muted-foreground">
-                    Hold all outbound requests from accounts with active fraud
-                    flags.
+                    Hold all outbound requests from accounts with active fraud flags.
                   </p>
                 </div>
                 <Switch
                   checked={flaggedPaused}
-                  onCheckedChange={() =>
-                    handleToggle("flagged", flaggedPaused)
-                  }
+                  disabled={isStatusLoading || toggleMutation.isPending}
+                  onCheckedChange={() => handleToggle("flagged", flaggedPaused)}
                 />
               </div>
             </div>
@@ -337,22 +418,19 @@ const WithdrawalControls = () => {
 
           <hr className="border-border/50" />
 
-          {/* Option 3: PalmPay channel */}
+          {/* Option 3: PalmPay channel — local only, not tied to status endpoint */}
           <div className="flex flex-col sm:flex-row sm:items-start rounded-lg">
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-medium">Pause PalmPay channel only</h4>
                   <p className="text-sm text-muted-foreground">
-                    Block PalmPay as a payout channel while all other methods
-                    continue.
+                    Block PalmPay as a payout channel while all other methods continue.
                   </p>
                 </div>
                 <Switch
                   checked={palmpayPaused}
-                  onCheckedChange={() =>
-                    handleToggle("palmpay", palmpayPaused)
-                  }
+                  onCheckedChange={() => handleToggle("palmpay", palmpayPaused)}
                 />
               </div>
             </div>
@@ -365,19 +443,15 @@ const WithdrawalControls = () => {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-medium">
-                    Pause for new accounts (&lt; 7 days)
-                  </h4>
+                  <h4 className="font-medium">Pause for new accounts (&lt; 7 days)</h4>
                   <p className="text-sm text-muted-foreground">
-                    Hold withdrawals from accounts created within the last 7
-                    days.
+                    Hold withdrawals from accounts created within the last 7 days.
                   </p>
                 </div>
                 <Switch
                   checked={newAccountPaused}
-                  onCheckedChange={() =>
-                    handleToggle("newAccount", newAccountPaused)
-                  }
+                  disabled={isStatusLoading || toggleMutation.isPending}
+                  onCheckedChange={() => handleToggle("newAccount", newAccountPaused)}
                 />
               </div>
             </div>
@@ -385,68 +459,82 @@ const WithdrawalControls = () => {
         </CardContent>
       </Card>
 
-      {/* Audit Log */}
+      {/* Audit Log — now live from getWithdrawalPauseAuditLog */}
       <Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
         <CardHeader>
           <CardTitle>Audit Log</CardTitle>
-          <CardDescription>
-            Every pause and resume with actor and reason
-          </CardDescription>
+          <CardDescription>Every pause and resume with actor and context</CardDescription>
         </CardHeader>
         <hr className="border-border/50" />
         <CardContent className="flex-1 overflow-y-auto p-0 md:p-6">
-          <div className="">
-            {auditLog.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-start gap-4 p-4 rounded-lg border border-border/50 bg-muted/5 hover:bg-muted/10 transition-colors mb-4"
-              >
-                <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${entry.action === "PAUSED"
-                  ? "bg-red-500/10"
-                  : "bg-green-500/10"
-                  }`}>
-                  {entry.action === "PAUSED" ? (
-                    <Lock className="h-4 w-4 text-red-500" />
-                  ) : (
-                    <LockOpen className="h-4 w-4 text-green-500" />
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0 ">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm">
-                        {entry.action === "PAUSED" ? "Withdrawal Paused" : "Withdrawal Resumed"}
-                      </p>
-                      <span className="text-sm text-muted-foreground">
-                        {format(new Date(entry.timestamp), "yyyy-MM-dd HH:mm:ss")}
-                      </span>
+          {isAuditLoading ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
+              <Loader2 className="animate-spin size-4" />
+              Loading audit log…
+            </div>
+          ) : isAuditError ? (
+            <p className="text-sm text-red-500 py-8 text-center">Failed to load audit log</p>
+          ) : auditLog.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No events yet</p>
+          ) : (
+            <div>
+              {auditLog.map((entry) => {
+                const { action, label } = parseAuditEntry(entry);
+                return (
+                  <div
+                    key={entry._id}
+                    className="flex items-start gap-4 p-4 rounded-lg border border-border/50 bg-muted/5 hover:bg-muted/10 transition-colors mb-4"
+                  >
+                    <div
+                      className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${action === "PAUSED" ? "bg-red-500/10" : "bg-green-500/10"
+                        }`}
+                    >
+                      {action === "PAUSED" ? (
+                        <Lock className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <LockOpen className="h-4 w-4 text-green-500" />
+                      )}
                     </div>
-                    <span className="text-sm font-medium text-foreground/80">
-                      {entry.actor}
-                    </span>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-sm">{label}</p>
+                          <span className="text-sm text-muted-foreground">
+                            {format(new Date(entry.createdAt), "yyyy-MM-dd HH:mm:ss")}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-foreground/80">
+                          {entry.userId?.fullName ?? entry.email}
+                          {entry.userId?.role && (
+                            <span className="text-muted-foreground font-normal">
+                              {" "}
+                              ({entry.userId.role})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <p className="text-xs mt-2 text-muted-foreground">
+                        {entry.featureName}
+                        {entry.browser && entry.browser !== "Other" && ` · ${entry.browser}`}
+                        {entry.device && entry.device !== "Other" && ` · ${entry.device}`}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs mt-2">
-                    {entry.reason || (
-                      <span className="text-muted-foreground italic">
-                        No reason provided
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <div className={`h-12 w-12 rounded-lg flex justify-center items-center mb-3 ${modalAction === "pause"
-              ? "bg-yellow-300/10"
-              : "bg-green-300/10"
-              }`}>
+            <div
+              className={`h-12 w-12 rounded-lg flex justify-center items-center mb-3 ${modalAction === "pause" ? "bg-yellow-300/10" : "bg-green-300/10"
+                }`}
+            >
               {modalAction === "pause" ? (
                 <CirclePause className="text-yellow-500 size-6" />
               ) : (
@@ -454,18 +542,16 @@ const WithdrawalControls = () => {
               )}
             </div>
             <DialogTitle>
-              {modalAction === "pause" ? "Enable this Control?" : "Disable this Control?"}
+              {modalAction === "pause" ? "Pause this control?" : "Resume this control?"}
             </DialogTitle>
-            <h2 className="text-sm">{modalContent?.title}</h2>
-            <DialogDescription className="text-xs">
-              {modalContent?.description}
-            </DialogDescription>
+            <h2 className="text-sm font-medium">{modalContent?.title}</h2>
+            <DialogDescription className="text-xs">{modalContent?.description}</DialogDescription>
           </DialogHeader>
-          <div className="">
+          <div>
             {modalContent?.extra}
-            <div className="">
+            <div>
               <Label htmlFor="reason" className="text-right text-xs">
-                Reason {modalAction === "pause" ? "for pause" : "for resume"} (required for audit log)
+                Reason {modalAction === "pause" ? "for pause" : "for resume"} (Optional)
               </Label>
               <Textarea
                 id="reason"
@@ -475,17 +561,34 @@ const WithdrawalControls = () => {
                 className="mt-1"
               />
             </div>
+            {toggleMutation.isError && (
+              <p className="text-xs text-red-500 mt-2">Something went wrong. Please try again.</p>
+            )}
           </div>
+
+
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button className="w-full" variant="outline" onClick={() => setModalOpen(false)}>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => setModalOpen(false)}
+              disabled={toggleMutation.isPending}
+            >
               Cancel
             </Button>
             <Button
               className="w-full"
               onClick={handleConfirm}
               variant={modalAction === "pause" ? "destructive" : "default"}
+              disabled={toggleMutation.isPending}
             >
-              {modalAction === "pause" ? "Pause" : "Resume"}
+              {toggleMutation.isPending ? (
+                <Loader2 className="animate-spin" />
+              ) : modalAction === "pause" ? (
+                "Pause"
+              ) : (
+                "Resume"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
