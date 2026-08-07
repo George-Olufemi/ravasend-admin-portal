@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { referralAPI, ReferralBonus, ReferralDetailRecord } from "@/lib/api";
+import ReferralDownline from "./ReferralDownline";
 import {
   BarChart,
   Bar,
@@ -31,7 +32,7 @@ import {
   YAxis,
 } from "recharts";
 
-type ReferralTab = "overview" | "details";
+type ReferralTab = "overview" | "details" | "downline";
 
 const ReferralProgram = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -290,14 +291,14 @@ const ReferralProgram = () => {
           </h1>
 
           <p className="text-muted-foreground">
-            Use the sidebar to jump between the current referral overview and
-            the new referral user details view.
+            Use the sidebar or tabs to switch between the referral overview,
+            referral user details, and referral downline views.
           </p>
         </div>
 
         <div className="rounded-xl border border-border/50 bg-card/80 px-4 py-3 text-sm text-muted-foreground">
-          Tip: the Referral Program menu now opens a quick overview/details
-          view.
+          Tip: the Referral Program menu now opens overview, details,
+          and referral downline views.
         </div>
       </div>
 
@@ -309,6 +310,8 @@ const ReferralProgram = () => {
           <TabsTrigger value="overview">Referral Overview</TabsTrigger>
 
           <TabsTrigger value="details">Referral User Details</TabsTrigger>
+
+          <TabsTrigger value="downline">Referral Downline</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -498,8 +501,8 @@ const ReferralProgram = () => {
                             <TableCell>
                               {item.userId?.createdAt
                                 ? new Date(
-                                    item.userId.createdAt,
-                                  ).toLocaleDateString()
+                                  item.userId.createdAt,
+                                ).toLocaleDateString()
                                 : "-"}
                             </TableCell>
                           </TableRow>
@@ -690,7 +693,7 @@ const ReferralProgram = () => {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col gap-2 flex-row justify-between">
+                <div className="flex flex-col gap-2 justify-between">
                   <div className="flex justify-between items-center gap-2">
                     <Button
                       variant="outline"
@@ -724,6 +727,10 @@ const ReferralProgram = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="downline" className="mt-6">
+          <ReferralDownline isTab />
         </TabsContent>
       </Tabs>
     </div>

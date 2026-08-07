@@ -153,7 +153,7 @@ interface ReferralDownlineData {
 }
 
 // --- Component ---
-const ReferralDownline = () => {
+const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -268,15 +268,26 @@ const ReferralDownline = () => {
   return (
     <div className="h-full flex flex-col space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Referral Downline
-          </h1>
-          <p className="text-muted-foreground">
-            Search for a user by username, email, or referral code to view their
-            downline
-          </p>
-        </div>
+        {!isTab ? (
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Referral Downline
+            </h1>
+            <p className="text-muted-foreground">
+              Search for a user by username, email, or referral code to view their
+              downline
+            </p>
+          </div>
+        ) : (
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Search User Downline
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Enter username, email, or referral code to view their downline
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           <form
@@ -635,8 +646,8 @@ const ReferralDownline = () => {
                         <span className="text-xs text-muted-foreground">
                           {item.createdAt
                             ? formatDistanceToNow(new Date(item.createdAt), {
-                                addSuffix: true,
-                              })
+                              addSuffix: true,
+                            })
                             : "Unknown date"}
                         </span>
                       </div>
@@ -808,9 +819,9 @@ const ReferralDownline = () => {
                             <div className="text-sm">
                               {invitedUser.createdAt
                                 ? formatDistanceToNow(
-                                    new Date(invitedUser.createdAt),
-                                    { addSuffix: true },
-                                  )
+                                  new Date(invitedUser.createdAt),
+                                  { addSuffix: true },
+                                )
                                 : "Unknown"}
                             </div>
                           </TableCell>
@@ -922,8 +933,8 @@ const ReferralDownline = () => {
                         <div className="text-xs text-muted-foreground">
                           {tx.createdAt
                             ? formatDistanceToNow(new Date(tx.createdAt), {
-                                addSuffix: true,
-                              })
+                              addSuffix: true,
+                            })
                             : "Unknown"}
                         </div>
                       </div>

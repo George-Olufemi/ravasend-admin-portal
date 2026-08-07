@@ -1,4 +1,5 @@
 import axios from "axios";
+import { AnyARecord } from "dns";
 
 // const BASE_URL = "https://reva-backend-zwra.onrender.com";
 const BASE_URL = import.meta.env.VITE_API_URL;
@@ -505,8 +506,43 @@ export const systemSettingsAPI = {
     return response.data;
   },
 
-    getWithdrawalPauseAuditLog: async () => {
+  getWithdrawalPauseAuditLog: async () => {
     const response = await api.get("/api/v1/user/getAllAudits");
+    return response.data;
+  },
+};
+
+export const adminAndRolesAPI = {
+  getAll: async () => {
+    try {
+      const response = await api.get("/api/v1/admin/all-admin-members");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message:
+            error.response?.data?.message || "No active promos found",
+          data: [],
+        };
+      }
+      throw error;
+    }
+  },
+
+  invite: async (data: { email: string; fullName: string; password: string; role: string }) => {
+    const response = await api.post("/api/v1/admin/invite-admin-member", data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<any> => {
+    const response = await api.delete(
+      `/api/v1/admin/remove-admin-member${id}`
+    );
+    return response.data;
+  },
+
+  update: async (id: string, data: any) => {
+    const response = await api.post(`/api/v1/admin/update-admin-member`, data);
     return response.data;
   },
 };
