@@ -17,6 +17,7 @@ import Audits from "./pages/admin/Audits";
 import Events from "./pages/admin/Events";
 import WithdrawalControls from "./pages/admin/WithdrawalControls";
 import AdminRoles from "./pages/admin/AdminRoles";
+import { Analytics } from "@vercel/analytics/next";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <Analytics />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
