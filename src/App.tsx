@@ -18,6 +18,7 @@ import Events from "./pages/admin/Events";
 import WithdrawalControls from "./pages/admin/WithdrawalControls";
 import AdminRoles from "./pages/admin/AdminRoles";
 import { Analytics } from "@vercel/analytics/next";
+import Campaigns from "./pages/admin/Campaigns";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="audits" element={<Audits />} />
             <Route path="withdrawal-control" element={<WithdrawalControls />} />
             <Route path="roles" element={<AdminRoles />} />
+            <Route path="campaign" element={<Campaigns />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

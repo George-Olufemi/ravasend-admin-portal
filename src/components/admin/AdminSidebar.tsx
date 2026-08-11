@@ -36,8 +36,13 @@ const menuItems = [
   { title: "Ledger", url: "/admin/ledger", icon: Sheet },
   { title: "Audits", url: "/admin/audits", icon: Shield },
   { title: "Fee", url: "/admin/fee", icon: CircleDollarSign },
-  { title: "Withdrawal Controls", url: "/admin/withdrawal-control", icon: ShieldAlert },
+  {
+    title: "Withdrawal Controls",
+    url: "/admin/withdrawal-control",
+    icon: ShieldAlert,
+  },
   { title: "Admin & Roles", url: "/admin/roles", icon: UserCog },
+  { title: "Campaign", url: "/admin/campaign", icon: UserCog },
 ];
 
 export function AdminSidebar() {
