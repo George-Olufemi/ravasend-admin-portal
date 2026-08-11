@@ -17,7 +17,7 @@ import Audits from "./pages/admin/Audits";
 import Events from "./pages/admin/Events";
 import WithdrawalControls from "./pages/admin/WithdrawalControls";
 import AdminRoles from "./pages/admin/AdminRoles";
-import { Analytics } from "@vercel/analytics/next";
+import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient();
 
