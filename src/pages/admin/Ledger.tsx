@@ -44,8 +44,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-// userId can come back populated ({_id, email}) from the all-ledger endpoint,
-// or as a plain string id from the per-user ledger endpoint.
 const getUserId = (entry: LedgerEntry): string | undefined =>
   typeof entry.userId === "string" ? entry.userId : entry.userId?._id;
 
@@ -73,7 +71,7 @@ const Ledger = () => {
   const { data: userLedgerData, isLoading: userLedgerLoading } = useQuery({
     queryKey: ["user-ledger", selectedUserId],
     queryFn: () => ledgerAPI.viewuserledger(selectedUserId!),
-    enabled: !!selectedUserId, // VERY IMPORTANT
+    enabled: !!selectedUserId,
   });
 
   const filteredEntries = useMemo(() => {
@@ -117,8 +115,6 @@ const Ledger = () => {
     }).format(amount);
   };
 
-  // Crypto amounts should NOT be run through the NGN Intl formatter —
-  // just show the raw quantity with up to 8 decimal places, trimmed.
   const formatCrypto = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       maximumFractionDigits: 8,
@@ -136,23 +132,14 @@ const Ledger = () => {
     return "Other";
   };
 
-  // Some entries carry `amount` denominated in NGN (e.g. airtime debits, or
-  // crypto swapped INTO NGN) — those should show the ₦ sign. Others carry
-  // `amount` denominated directly in the crypto currency itself (e.g. a raw
-  // "Crypto Deposit - USDC" credit, where amount === cryptoAmount) — those
-  // should NOT get a ₦ sign, just the crypto currency code.
   const isNgnAmount = (entry: { currency?: string; type?: string }) => {
-    if (!entry.currency) return true; // no currency field => plain NGN entry
+    if (!entry.currency) return true;
     const currency = entry.currency.toUpperCase();
     if (currency === "NGN") return true;
-    // e.g. "DEPOSIT - Crypto Swap usdt to NGN" -> amount was converted to NGN
     if (entry.type?.toLowerCase().includes("to ngn")) return true;
-    return false; // amount is denominated in the crypto currency itself
+    return false;
   };
 
-  // Renders the transaction amount with the correct denomination, plus a
-  // supplementary crypto pill only when the crypto amount is genuinely
-  // extra info (i.e. amount itself is already in NGN, not the same figure).
   const AmountDisplay = ({
     entry,
     signClass,
@@ -185,7 +172,6 @@ const Ledger = () => {
     );
   };
 
-  // Small reusable pill for "26 USDC" / "1.46413136 usdt" etc.
   const CryptoPill = ({
     cryptoAmount,
     currency,
@@ -228,7 +214,7 @@ const Ledger = () => {
       getUserId(entry) || "",
       getUserEmail(entry) || "",
       entry.transaction,
-      `"${entry.type}"`, // wrap in quotes in case of commas in type string
+      `"${entry.type}"`,
       entry.amount,
       entry.cryptoAmount ?? "",
       entry.currency ?? "",
@@ -276,7 +262,7 @@ const Ledger = () => {
   }
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="p-7 flex flex-col space-y-6 min-h-full flex-1">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Ledger</h1>
@@ -319,8 +305,8 @@ const Ledger = () => {
               : `Showing ${filteredEntries.length} of ${entries.length} entries`}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 overflow-hidden p-0 md:p-6">
-          <div className="overflow-x-auto">
+        <CardContent className="flex-1 flex flex-col min-h-0 p-4 md:p-6 space-y-4 overflow-hidden">
+          <div className="flex-1 overflow-auto w-full rounded-lg border border-border/50">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-muted/20">
@@ -367,7 +353,6 @@ const Ledger = () => {
                         </div>
                       </TableCell>
 
-                      {/* Type badge */}
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -388,7 +373,6 @@ const Ledger = () => {
                         </Badge>
                       </TableCell>
 
-                      {/* Full description */}
                       <TableCell className="max-w-xs">
                         <div
                           className="text-sm text-muted-foreground truncate"
@@ -401,7 +385,6 @@ const Ledger = () => {
                         </div>
                       </TableCell>
 
-                      {/* Amount — NGN gets ₦, crypto-denominated gets its own currency code */}
                       <TableCell>
                         <AmountDisplay
                           entry={entry}
@@ -415,21 +398,18 @@ const Ledger = () => {
                         />
                       </TableCell>
 
-                      {/* Balance Before */}
                       <TableCell>
                         <div className="text-sm font-medium">
                           {formatCurrency(entry.balanceBefore)}
                         </div>
                       </TableCell>
 
-                      {/* Balance After */}
                       <TableCell>
                         <div className="text-sm font-medium">
                           {formatCurrency(entry.balanceAfter)}
                         </div>
                       </TableCell>
 
-                      {/* Date */}
                       <TableCell>
                         <div className="text-sm">
                           {formatDistanceToNow(new Date(entry.createdAt), {
@@ -444,77 +424,82 @@ const Ledger = () => {
             </Table>
           </div>
 
-          {filteredEntries.length > 0 && totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                      className={
-                        page === 1
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
-
-                  {Array.from({ length: Math.min(totalPages, 5) }).map(
-                    (_, index) => {
-                      let pageNumber = index + 1;
-                      if (totalPages > 5) {
-                        if (page <= 3) {
-                          pageNumber = index + 1;
-                        } else if (page >= totalPages - 2) {
-                          pageNumber = totalPages - 4 + index;
-                        } else {
-                          pageNumber = page - 2 + index;
+          {filteredEntries.length > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t border-border/50 shrink-0">
+              <span className="text-[12px] text-muted-foreground">
+                Showing {startIndex + 1} - {Math.min(startIndex + PAGE_SIZE, filteredEntries.length)} of {filteredEntries.length} entries
+              </span>
+              {totalPages > 1 && (
+                <Pagination className="mx-0 w-auto">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                        className={
+                          page === 1
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
                         }
-                      }
-                      return (
-                        <PaginationItem key={pageNumber}>
+                      />
+                    </PaginationItem>
+
+                    {Array.from({ length: Math.min(totalPages, 5) }).map(
+                      (_, index) => {
+                        let pageNumber = index + 1;
+                        if (totalPages > 5) {
+                          if (page <= 3) {
+                            pageNumber = index + 1;
+                          } else if (page >= totalPages - 2) {
+                            pageNumber = totalPages - 4 + index;
+                          } else {
+                            pageNumber = page - 2 + index;
+                          }
+                        }
+                        return (
+                          <PaginationItem key={pageNumber}>
+                            <PaginationLink
+                              className="cursor-pointer"
+                              isActive={page === pageNumber}
+                              onClick={() => setPage(pageNumber)}
+                            >
+                              {pageNumber}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      },
+                    )}
+
+                    {totalPages > 5 && page < totalPages - 2 && (
+                      <>
+                        <PaginationItem>
+                          <span className="px-2">...</span>
+                        </PaginationItem>
+                        <PaginationItem>
                           <PaginationLink
                             className="cursor-pointer"
-                            isActive={page === pageNumber}
-                            onClick={() => setPage(pageNumber)}
+                            onClick={() => setPage(totalPages)}
                           >
-                            {pageNumber}
+                            {totalPages}
                           </PaginationLink>
                         </PaginationItem>
-                      );
-                    },
-                  )}
+                      </>
+                    )}
 
-                  {totalPages > 5 && page < totalPages - 2 && (
-                    <>
-                      <PaginationItem>
-                        <span className="px-2">...</span>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink
-                          className="cursor-pointer"
-                          onClick={() => setPage(totalPages)}
-                        >
-                          {totalPages}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() =>
-                        setPage((p) => Math.min(p + 1, totalPages))
-                      }
-                      className={
-                        page === totalPages
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() =>
+                          setPage((p) => Math.min(p + 1, totalPages))
+                        }
+                        className={
+                          page === totalPages
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
+                        }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </div>
           )}
         </CardContent>
@@ -548,7 +533,6 @@ const Ledger = () => {
                     key={item._id}
                     className="p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition"
                   >
-                    {/* Top row */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {debit ? (
@@ -577,18 +561,15 @@ const Ledger = () => {
                       </div>
                     </div>
 
-                    {/* Description */}
                     <div className="text-sm text-muted-foreground mt-1">
                       {item.type}
                     </div>
 
-                    {/* Balance */}
                     <div className="flex justify-between text-xs mt-3 text-muted-foreground">
                       <span>Before: {formatCurrency(item.balanceBefore)}</span>
                       <span>After: {formatCurrency(item.balanceAfter)}</span>
                     </div>
 
-                    {/* Date */}
                     <div className="text-xs text-muted-foreground mt-2">
                       {formatDistanceToNow(new Date(item.createdAt), {
                         addSuffix: true,

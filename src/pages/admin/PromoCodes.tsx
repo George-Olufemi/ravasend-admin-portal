@@ -220,7 +220,7 @@ const PromoCodes = () => {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="bg-gradient-primary hover:opacity-90 shadow-glow">
+            <Button className="">
               <Plus className="mr-2 h-4 w-4" />
               Create Promo Code
             </Button>
@@ -312,7 +312,7 @@ const PromoCodes = () => {
                   disabled={
                     createMutation.isPending || updateMutation.isPending
                   }
-                  className="bg-gradient-primary hover:opacity-90"
+                  className="hover:opacity-90"
                 >
                   {createMutation.isPending || updateMutation.isPending ? (
                     <>

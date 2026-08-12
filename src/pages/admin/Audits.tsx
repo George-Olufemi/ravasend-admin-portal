@@ -28,7 +28,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
-import { Download, Search, X, Globe, Mail, Clock, User } from "lucide-react";
+import { Download, Search, X, Globe, Mail, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 const Audits = () => {
@@ -83,17 +83,6 @@ const Audits = () => {
     startIndex,
     startIndex + PAGE_SIZE,
   );
-
-  const getLocationFlag = (location: string) => {
-    const flags: Record<string, string> = {
-      NG: "🇳🇬",
-      US: "🇺🇸",
-      GB: "🇬🇧",
-      CA: "🇨🇦",
-      AU: "🇦🇺",
-    };
-    return flags[location] || "🌍";
-  };
 
   const downloadCSV = () => {
     if (!filteredAudits.length) return;
@@ -161,7 +150,7 @@ const Audits = () => {
   }
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="p-7 flex flex-col space-y-6 min-h-full flex-1">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
@@ -208,8 +197,8 @@ const Audits = () => {
               : `Showing ${filteredAudits.length} of ${audits.length} records`}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 overflow-hidden p-0 md:p-6">
-          <div className="overflow-x-auto">
+        <CardContent className="flex-1 flex flex-col min-h-0 p-4 md:p-6 space-y-4 overflow-hidden">
+          <div className="flex-1 overflow-auto w-full rounded-lg border border-border/50">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -238,9 +227,6 @@ const Audits = () => {
                           <div className="font-medium flex items-center gap-2">
                             {audit.featureName}
                           </div>
-                          {/* <div className="text-xs text-muted-foreground">
-                            ID: {audit._id.slice(-8)}
-                          </div> */}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -264,9 +250,6 @@ const Audits = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {/* <span className="text-lg">
-                            {getLocationFlag(audit.location)}
-                          </span> */}
                           <span className="font-medium">{audit.location}</span>
                         </div>
                       </TableCell>
@@ -288,77 +271,82 @@ const Audits = () => {
               </TableBody>
             </Table>
           </div>
-          {filteredAudits.length > 0 && totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                      className={
-                        page === 1
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
-
-                  {Array.from({ length: Math.min(totalPages, 5) }).map(
-                    (_, index) => {
-                      let pageNumber = index + 1;
-                      if (totalPages > 5) {
-                        if (page <= 3) {
-                          pageNumber = index + 1;
-                        } else if (page >= totalPages - 2) {
-                          pageNumber = totalPages - 4 + index;
-                        } else {
-                          pageNumber = page - 2 + index;
+          {filteredAudits.length > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t border-border/50 shrink-0">
+              <span className="text-[12px] text-muted-foreground">
+                Showing {startIndex + 1} - {Math.min(startIndex + PAGE_SIZE, filteredAudits.length)} of {filteredAudits.length} records
+              </span>
+              {totalPages > 1 && (
+                <Pagination className="mx-0 w-auto">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                        className={
+                          page === 1
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
                         }
-                      }
-                      return (
-                        <PaginationItem key={pageNumber}>
+                      />
+                    </PaginationItem>
+
+                    {Array.from({ length: Math.min(totalPages, 5) }).map(
+                      (_, index) => {
+                        let pageNumber = index + 1;
+                        if (totalPages > 5) {
+                          if (page <= 3) {
+                            pageNumber = index + 1;
+                          } else if (page >= totalPages - 2) {
+                            pageNumber = totalPages - 4 + index;
+                          } else {
+                            pageNumber = page - 2 + index;
+                          }
+                        }
+                        return (
+                          <PaginationItem key={pageNumber}>
+                            <PaginationLink
+                              className="cursor-pointer"
+                              isActive={page === pageNumber}
+                              onClick={() => setPage(pageNumber)}
+                            >
+                              {pageNumber}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      },
+                    )}
+
+                    {totalPages > 5 && page < totalPages - 2 && (
+                      <>
+                        <PaginationItem>
+                          <span className="px-2">...</span>
+                        </PaginationItem>
+                        <PaginationItem>
                           <PaginationLink
                             className="cursor-pointer"
-                            isActive={page === pageNumber}
-                            onClick={() => setPage(pageNumber)}
+                            onClick={() => setPage(totalPages)}
                           >
-                            {pageNumber}
+                            {totalPages}
                           </PaginationLink>
                         </PaginationItem>
-                      );
-                    },
-                  )}
+                      </>
+                    )}
 
-                  {totalPages > 5 && page < totalPages - 2 && (
-                    <>
-                      <PaginationItem>
-                        <span className="px-2">...</span>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink
-                          className="cursor-pointer"
-                          onClick={() => setPage(totalPages)}
-                        >
-                          {totalPages}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() =>
-                        setPage((p) => Math.min(p + 1, totalPages))
-                      }
-                      className={
-                        page === totalPages
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() =>
+                          setPage((p) => Math.min(p + 1, totalPages))
+                        }
+                        className={
+                          page === totalPages
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
+                        }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </div>
           )}
         </CardContent>

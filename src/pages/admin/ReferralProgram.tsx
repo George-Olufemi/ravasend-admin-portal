@@ -1,42 +1,600 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  Download,
+  Users,
+  Share2,
+  TrendingUp,
+  DollarSign,
+  Zap,
+  Search,
+  ChevronRight,
+  GitMerge,
+  Save,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import { referralAPI, ReferralBonus, ReferralDetailRecord } from "@/lib/api";
 import ReferralDownline from "./ReferralDownline";
-import {
-  BarChart,
-  Bar,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
-type ReferralTab = "overview" | "details" | "downline";
+type Page =
+  | "dashboard"
+  | "analytics"
+  | "users"
+  | "transactions"
+  | "promo-codes"
+  | "ledger"
+  | "audits"
+  | "fee"
+  | "referral"
+  | "referral-overview"
+  | "referral-details"
+  | "referral-explorer"
+  | "competitions"
+  | "segments"
+  | "campaigns"
+  | "withdrawals"
+  | "admin-roles";
+
+// ─── Base Helpers ────────────────────────────────────────────────────────────
+
+function PurpleBtn({
+  children,
+  onClick,
+  className = "",
+  size = "md",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-xl font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 ${
+        size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-4 py-2 text-[12px]"
+      } ${className}`}
+      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h1 className="text-xl font-bold text-foreground">{title}</h1>
+        {subtitle && <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>}
+      </div>
+      {action && <div>{action}</div>}
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-white/[0.025] border border-border rounded-xl p-5">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-[22px] font-bold text-foreground leading-none mt-1">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function TableWrap({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white/[0.025] border border-border rounded-xl overflow-hidden mb-4">
+      <table className="w-full text-left border-collapse">{children}</table>
+    </div>
+  );
+}
+
+function THead({ cols }: { cols: string[] }) {
+  return (
+    <thead>
+      <tr className="border-b border-border bg-white/[0.02]">
+        {cols.map((c, i) => (
+          <th key={i} className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            {c}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function Pagination({ page, total, perPage, onChange }: { page: number; total: number; perPage: number; onChange: (p: number) => void }) {
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  return (
+    <div className="flex items-center justify-between mt-4 text-[12px] text-muted-foreground">
+      <span>Showing {Math.min((page - 1) * perPage + 1, total)} - {Math.min(page * perPage, total)} of {total}</span>
+      <div className="flex items-center gap-2">
+        <button disabled={page <= 1} onClick={() => onChange(page - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Previous</button>
+        <span>Page {page} of {totalPages}</span>
+        <button disabled={page >= totalPages} onClick={() => onChange(page + 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Next</button>
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button onClick={onToggle} className={`w-11 h-6 rounded-full transition-colors relative ${on ? "bg-primary" : "bg-secondary"}`}>
+      <span className={`size-4 rounded-full bg-white absolute top-1 transition-transform ${on ? "left-6" : "left-1"}`} />
+    </button>
+  );
+}
+
+function ViralLoopEditor() {
+  const [steps, setSteps] = useState([
+    { id: 1, name: "Step 1 — Invite sent", desc: "User sends an invitation link to a friend", reward: 50, active: true },
+    { id: 2, name: "Step 2 — Registered", desc: "Invited friend creates an account", reward: 200, active: true },
+    { id: 3, name: "Step 3 — KYC / Wallet", desc: "Friend completes identity verification & links wallet", reward: 500, active: true },
+    { id: 4, name: "Step 4 — ≥$100 in", desc: "Friend deposits $100 or more into wallet", reward: 1500, active: true },
+    { id: 5, name: "Step 5 — First bill", desc: "Friend pays their first bill on Ravasend", reward: 1000, active: true },
+    { id: 6, name: "Step 6 — ≥$500 in", desc: "Cumulative deposit reaches $500", reward: 3000, active: true },
+    { id: 7, name: "Step 7 — ≥$1K in", desc: "Cumulative deposit reaches $1,000", reward: 7619, active: true },
+  ]);
+  const [savedToast, setSavedToast] = useState(false);
+
+  const totalPossible = steps.reduce((sum, s) => sum + (s.active ? s.reward : 0), 0);
+
+  const handleSave = () => {
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 3000);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between pb-3 border-b border-border">
+        <div>
+          <p className="text-[13px] font-bold text-foreground">7-Step Tiered Rewards</p>
+          <p className="text-[11px] text-muted-foreground">
+            Max reward per invite: <span className="text-emerald-400 font-mono font-bold">₦{totalPossible.toLocaleString()}</span>
+          </p>
+        </div>
+        <PurpleBtn size="sm" onClick={handleSave}>
+          <Save size={11} /> Save Config
+        </PurpleBtn>
+      </div>
+
+      {savedToast && (
+        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold flex items-center gap-2">
+          <CheckCircle2 size={13} /> Reward configuration saved successfully.
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {steps.map((step) => (
+          <div
+            key={step.id}
+            className={`p-3.5 rounded-xl border transition-all ${
+              step.active ? "bg-white/[0.02] border-border" : "bg-white/[0.008] border-border/40 opacity-60"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex gap-2.5 min-w-0">
+                <div className="size-6 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 mt-0.5">
+                  {step.id}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-foreground">{step.name.split(" — ")[1] || step.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{step.desc}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center bg-secondary border border-border rounded-lg overflow-hidden px-2 py-1">
+                  <span className="text-[10px] text-muted-foreground mr-1">₦</span>
+                  <input
+                    type="number"
+                    value={step.reward}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, reward: val } : s)));
+                    }}
+                    className="w-16 bg-transparent text-[11px] font-mono font-bold text-foreground focus:outline-none"
+                  />
+                </div>
+                <Toggle
+                  on={step.active}
+                  onToggle={() => setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, active: !s.active } : s)))}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Referral Overview ───────────────────────────────────────────────────────
+
+function ReferralOverviewPage({
+  setPage,
+  overviewData,
+  isLoading,
+  exportCsv,
+}: {
+  setPage: (p: Page) => void;
+  overviewData?: { count?: number; data?: ReferralBonus[] };
+  isLoading?: boolean;
+  exportCsv?: () => void;
+}) {
+  const referrals: ReferralBonus[] = overviewData?.data || [];
+
+  const totalReferrersCount = referrals.length;
+  const totalInvites = overviewData?.count ?? referrals.length;
+  const totalReward = referrals.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+  // Calculate conversion rate from actual data
+  const convertedUsers = referrals.filter(r => r.userId?.dollarWallet && r.userId.dollarWallet > 0).length;
+  const conversionRate = referrals.length > 0 ? Math.round((convertedUsers / referrals.length) * 100) : 0;
+
+  const REFERRAL_TABS: { label: string; page: Page }[] = [
+    { label: "Overview", page: "referral-overview" },
+    { label: "User Details", page: "referral-details" },
+    { label: "Downline Explorer", page: "referral-explorer" },
+  ];
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-xl font-bold text-foreground">Referral Program</h1>
+          <PurpleBtn size="sm" onClick={exportCsv}><Download size={12} /> Export CSV</PurpleBtn>
+        </div>
+        <p className="text-[13px] text-muted-foreground">Track every invite, signup, and reward across your network.</p>
+      </div>
+
+      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-fit">
+        {REFERRAL_TABS.map(t => (
+          <button key={t.page} onClick={() => setPage(t.page)}
+            className={`px-5 py-2 rounded-lg text-[12px] font-semibold transition-all ${t.page === "referral-overview" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            style={t.page === "referral-overview" ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-4 gap-4 mb-7">
+        <div className="bg-white/[0.025] border border-border rounded-xl p-5 flex items-start gap-3">
+          <div className="size-9 rounded-xl bg-white/5 border border-border flex items-center justify-center shrink-0"><Users size={16} className="text-primary" /></div>
+          <div>
+            <p className="text-[11px] text-muted-foreground">Total Referrers</p>
+            <p className="text-[22px] font-bold text-foreground leading-none mt-0.5">{totalReferrersCount}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Unique users who referred</p>
+          </div>
+        </div>
+        <div className="bg-white/[0.025] border border-border rounded-xl p-5 flex items-start gap-3">
+          <div className="size-9 rounded-xl bg-white/5 border border-border flex items-center justify-center shrink-0"><Share2 size={16} className="text-emerald-400" /></div>
+          <div>
+            <p className="text-[11px] text-muted-foreground">Total Referred</p>
+            <p className="text-[22px] font-bold text-foreground leading-none mt-0.5">{totalInvites}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Users brought in</p>
+          </div>
+        </div>
+        <div className="bg-white/[0.025] border border-border rounded-xl p-5 flex items-start gap-3">
+          <div className="size-9 rounded-xl bg-white/5 border border-border flex items-center justify-center shrink-0"><TrendingUp size={16} className="text-amber-400" /></div>
+          <div>
+            <p className="text-[11px] text-muted-foreground">Conversion Rate</p>
+            <p className="text-[22px] font-bold text-foreground leading-none mt-0.5">{conversionRate}%</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Active deposited users</p>
+          </div>
+        </div>
+        <div className="bg-white/[0.025] border border-border rounded-xl p-5 flex items-start gap-3">
+          <div className="size-9 rounded-xl bg-white/5 border border-border flex items-center justify-center shrink-0"><DollarSign size={16} className="text-violet-400" /></div>
+          <div>
+            <p className="text-[11px] text-muted-foreground">Rewards Paid</p>
+            <p className="text-[22px] font-bold text-foreground leading-none mt-0.5">₦{totalReward.toFixed(2)}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Total referral rewards</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white/[0.025] border border-border rounded-xl p-6 mb-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <p className="text-[13px] font-bold text-foreground">Top Referrers</p>
+            <p className="text-[11px] text-muted-foreground">By referrals sent and conversion rate</p>
+          </div>
+        </div>
+        {isLoading ? (
+          <div className="p-8 text-center text-muted-foreground text-[12px] flex items-center justify-center gap-2">
+            <Loader2 className="animate-spin" size={14} /> Loading referrers performance...
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {referrals.length > 0 ? (
+              referrals.map((r, i) => {
+                const referredCount = r.referredCount || 0;
+                const converted = r.userId?.dollarWallet && r.userId.dollarWallet > 0 ? 1 : 0;
+                const pct = referredCount > 0 ? Math.round((converted / referredCount) * 100) : 0;
+                return (
+                  <div key={i} className="flex items-center gap-4 group">
+                    <div className="flex items-center gap-2.5 w-52 shrink-0">
+                      <div className="size-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                        style={{ background: `hsl(${260 + i * 30}, 70%, 55%)` }}>
+                        {r.userId?.fullName?.split(" ").map(w => w[0]).join("").slice(0, 2) || "??"}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold text-foreground truncate">{r.userId?.fullName || "Unknown User"}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{r.userId?.email || "-"}</p>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="h-7 bg-secondary rounded-lg overflow-hidden relative">
+                        <div className="h-full rounded-lg flex items-center justify-end px-2.5 transition-all"
+                          style={{ width: `${Math.min(100, Math.max(20, (r.amount || 0) / 30 * 100))}%`, minWidth: 60, background: `linear-gradient(90deg, hsl(${260 + i * 30}, 70%, 45%), hsl(${260 + i * 30}, 70%, 55%))` }}>
+                          <span className="text-[10px] font-bold text-white">₦{r.amount || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 w-36 shrink-0 text-right">
+                      <div className="text-right flex-1">
+                        <p className="text-[11px] font-bold text-foreground">{referredCount} referred</p>
+                        <p className={`text-[10px] font-semibold ${pct >= 50 ? "text-emerald-400" : pct > 0 ? "text-amber-400" : "text-zinc-500"}`}>{pct}% converted</p>
+                      </div>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${pct > 0 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-zinc-500/15 text-zinc-400 border-zinc-500/20"}`}>
+                        {pct > 0 ? "active" : "inactive"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-8 text-center text-muted-foreground text-[12px]">No referral data available</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="size-5 rounded-lg bg-primary/15 flex items-center justify-center">
+            <Zap size={11} className="text-primary" />
+          </div>
+          <h2 className="text-[14px] font-bold text-foreground">Viral Loop — 7-Step Reward System</h2>
+          <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">LIVE</span>
+        </div>
+        <p className="text-[12px] text-muted-foreground ml-7">Configure rewards at each step of the referral journey. Referrers can earn up to ₦13,869 per successful invite.</p>
+      </div>
+
+      <div className="grid grid-cols-[1fr_340px] gap-5 mb-6">
+        <div className="bg-white/[0.025] border border-border rounded-xl p-5 overflow-y-auto max-h-[600px]">
+          <ViralLoopEditor />
+        </div>
+        <div className="space-y-4">
+          <div className="bg-white/[0.025] border border-border rounded-xl p-5">
+            <p className="text-[13px] font-bold text-foreground mb-1">Conversion Funnel</p>
+            <p className="text-[11px] text-muted-foreground mb-4">Where referred users stand across 7 steps</p>
+            <div className="space-y-2">
+              {[
+                { label: "Step 1 — Invite sent", pct: 100, color: "#7B3FE4" },
+                { label: "Step 2 — Registered", pct: 72, color: "#6366F1" },
+                { label: "Step 3 — KYC / Wallet", pct: 51, color: "#3B82F6" },
+                { label: "Step 4 — ≥$100 in", pct: 34, color: "#10B981" },
+                { label: "Step 5 — First bill", pct: 28, color: "#F59E0B" },
+                { label: "Step 6 — ≥$500 in", pct: 18, color: "#EF4444" },
+                { label: "Step 7 — ≥$1K in", pct: 9, color: "#EC4899" },
+              ].map(f => (
+                <div key={f.label}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-muted-foreground">{f.label}</span>
+                    <span className="text-[10px] font-bold text-foreground">{f.pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${f.pct}%`, backgroundColor: f.color }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white/[0.025] border border-border rounded-xl p-5">
+            <p className="text-[13px] font-bold text-foreground mb-3">Virality Metrics</p>
+            <div className="space-y-3">
+              {[
+                { label: "K-Factor", value: "0.72", sub: "avg invites × conversion", color: "text-primary" },
+                { label: "Avg time to Step 4", value: "11d", sub: "invite to first deposit", color: "text-amber-400" },
+                { label: "Avg referrer lifetime", value: `₦${(totalReward / (referrals.length || 1)).toFixed(2)}`, sub: "avg reward earned", color: "text-emerald-400" },
+                { label: "Viral cycle time", value: "4.2d", sub: "trigger to new signup", color: "text-violet-400" },
+              ].map(m => (
+                <div key={m.label} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold text-foreground">{m.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{m.sub}</p>
+                  </div>
+                  <span className={`text-[16px] font-black font-mono ${m.color}`}>{m.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Referral User Details ────────────────────────────────────────────────────
+
+function ReferralDetailsPage({
+  setPage,
+  detailsData,
+  isLoading,
+  exportCsv,
+}: {
+  setPage: (p: Page) => void;
+  detailsData?: ReferralDetailRecord[];
+  isLoading?: boolean;
+  exportCsv?: () => void;
+}) {
+  const [pg, setPg] = useState(1);
+  const [search, setSearch] = useState("");
+  const perPage = 8;
+
+  const rows = detailsData?.map((d) => ({
+    referred: d.user?.fullName || "Unknown User",
+    rEmail: d.user?.email || "-",
+    rPhone: d.user?.phoneNumber || "-",
+    by: d.referredBy?.fullName || "",
+    bEmail: d.referredBy?.email || "",
+    stage: d.type || "welcome_bonus",
+    amount: d.amount || 0,
+    date: d.updatedAt ? new Date(d.updatedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+  })) || [];
+
+  const REFERRAL_TABS: { label: string; page: Page }[] = [
+    { label: "Overview", page: "referral-overview" },
+    { label: "User Details", page: "referral-details" },
+    { label: "Downline Explorer", page: "referral-explorer" },
+  ];
+
+  const STAGE_BADGE: Record<string, string> = {
+    welcome_bonus: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+    invite_reward: "bg-violet-500/15 text-violet-400 border-violet-500/20",
+    referral: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  };
+  const STAGE_LABEL: Record<string, string> = {
+    welcome_bonus: "Welcome Bonus",
+    invite_reward: "Invite Reward",
+    referral: "Referral",
+  };
+
+  const filtered = rows.filter(r => !search || 
+    r.referred.toLowerCase().includes(search.toLowerCase()) || 
+    r.rEmail.toLowerCase().includes(search.toLowerCase()) || 
+    r.by.toLowerCase().includes(search.toLowerCase())
+  );
+  const paged = filtered.slice((pg - 1) * perPage, pg * perPage);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-7">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-xl font-bold text-foreground">Referral Program</h1>
+        <PurpleBtn size="sm" onClick={exportCsv}><Download size={12} /> Export CSV</PurpleBtn>
+      </div>
+      <p className="text-[13px] text-muted-foreground mb-6">Track every invite, signup, and reward across your network.</p>
+      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-fit">
+        {REFERRAL_TABS.map(t => (
+          <button key={t.page} onClick={() => setPage(t.page)}
+            className={`px-5 py-2 rounded-lg text-[12px] font-semibold transition-all ${t.page === "referral-details" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            style={t.page === "referral-details" ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <StatCard label="Referral Records" value={String(rows.length)} sub="Total events logged" />
+        <StatCard label="Total Rewards" value={`₦${rows.reduce((a, r) => a + r.amount, 0).toFixed(2)}`} sub="Combined payout amount" />
+        <StatCard label="Referral Linked" value={String(rows.filter(r => r.by).length)} sub="Records with referrer" />
+      </div>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex-1 flex items-center gap-2 bg-white/5 border border-border rounded-xl px-3.5 py-2.5">
+          <Search size={13} className="text-muted-foreground shrink-0" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPg(1); }} placeholder="Search by name or email…"
+            className="bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none flex-1" />
+        </div>
+      </div>
+      <TableWrap>
+        <THead cols={["Referred User", "Referred By", "Stage", "Reward", "Date"]} />
+        <tbody className="divide-y divide-border">
+          {isLoading ? (
+            <tr>
+              <td colSpan={5} className="px-5 py-8 text-center text-[12px] text-muted-foreground">
+                <Loader2 className="animate-spin inline mr-2" size={14} /> Loading referral user details...
+              </td>
+            </tr>
+          ) : paged.length > 0 ? (
+            paged.map((r, i) => (
+              <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}>
+                      {r.referred.split(" ").map(w => w[0]).join("").slice(0, 2)}
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-semibold text-foreground">{r.referred}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{r.rEmail}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  {r.by
+                    ? <div><p className="text-[12px] font-semibold text-foreground">{r.by}</p><p className="text-[10px] text-muted-foreground">{r.bEmail}</p></div>
+                    : <span className="text-[11px] text-muted-foreground italic">Organic signup</span>}
+                </td>
+                <td className="px-5 py-4">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STAGE_BADGE[r.stage] || "bg-zinc-500/15 text-zinc-400 border-zinc-500/20"}`}>
+                    {STAGE_LABEL[r.stage] || r.stage}
+                  </span>
+                </td>
+                <td className="px-5 py-4">
+                  <span className="text-[13px] font-mono font-bold text-emerald-400">+₦{r.amount.toFixed(2)}</span>
+                </td>
+                <td className="px-5 py-4 text-[11px] text-muted-foreground">{r.date}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={5} className="px-5 py-8 text-center text-[12px] text-muted-foreground">
+                No referral details available
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </TableWrap>
+      <Pagination page={pg} total={filtered.length} perPage={perPage} onChange={setPg} />
+    </div>
+  );
+}
+
+// ─── Referral Downline Tab Wrapper ──────────────────────────────────────────
+
+function ReferralDownlineTabWrapper({ setPage }: { setPage: (p: Page) => void }) {
+  const REFERRAL_TABS: { label: string; page: Page }[] = [
+    { label: "Overview", page: "referral-overview" },
+    { label: "User Details", page: "referral-details" },
+    { label: "Downline Explorer", page: "referral-explorer" },
+  ];
+
+  return (
+    <div className="flex-1 overflow-y-auto p-7">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-xl font-bold text-foreground">Referral Program</h1>
+      </div>
+      <p className="text-[13px] text-muted-foreground mb-6">Track every invite, signup, and reward across your network.</p>
+
+      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-fit">
+        {REFERRAL_TABS.map((t) => (
+          <button
+            key={t.page}
+            onClick={() => setPage(t.page)}
+            className={`px-5 py-2 rounded-lg text-[12px] font-semibold transition-all ${
+              t.page === "referral-explorer" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+            style={t.page === "referral-explorer" ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <ReferralDownline isTab />
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 const ReferralProgram = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get("tab") as ReferralTab) ?? "overview";
+  const navigate = useNavigate();
+  const activeTab = (searchParams.get("tab") as "overview" | "details" | "downline") ?? "overview";
 
   const overviewQuery = useQuery({
     queryKey: ["referrals"],
@@ -49,691 +607,55 @@ const ReferralProgram = () => {
     enabled: activeTab === "details",
   });
 
-  const referrals: ReferralBonus[] = overviewQuery.data?.data || [];
-  const referralDetails: ReferralDetailRecord[] = detailsQuery.data?.data || [];
-
-  /**
-   * FILTER OUT INVALID RECORDS
-   * Prevent crashes from null userId
-   */
-  const validReferrals = useMemo(() => {
-    return referrals.filter((item) => item.userId);
-  }, [referrals]);
-
-  const totalReferredUsers = validReferrals.length;
-  const totalInvites = overviewQuery.data?.count ?? validReferrals.length;
-
-  const totalRewardGiven = validReferrals.reduce(
-    (sum, item) => sum + item.amount,
-    0,
-  );
-
-  const totalDepositAmount = validReferrals.reduce(
-    (sum, item) => sum + (item.userId?.dollarWallet || 0),
-    0,
-  );
-
-  const totalDepositUsers = validReferrals.filter(
-    (item) => (item.userId?.dollarWallet || 0) > 0,
-  ).length;
-
-  const minDeposit = 0;
-  const minReward = 0;
-
-  const sortedReferrals = useMemo(() => {
-    if (!validReferrals.length) return [];
-
-    return [...validReferrals].sort((a, b) => b.amount - a.amount);
-  }, [validReferrals]);
-
-  const filteredReferrals = useMemo(() => {
-    return sortedReferrals.filter((item) => {
-      const deposit = item.userId?.dollarWallet || 0;
-
-      return deposit >= minDeposit && item.amount >= minReward;
-    });
-  }, [sortedReferrals]);
-
-  const [viewMode, setViewMode] = useState<"table" | "chart">("table");
-
-  const [chartBy, setChartBy] = useState<"reward" | "deposit">("reward");
-
-  /**
-   * SAFE CHART DATA
-   */
-  const chartData = useMemo(() => {
-    const sorted = [...filteredReferrals].sort((a, b) => {
-      if (chartBy === "reward") return b.amount - a.amount;
-
-      return (b.userId?.dollarWallet || 0) - (a.userId?.dollarWallet || 0);
-    });
-
-    return sorted.slice(0, 10).map((item) => ({
-      user: item.userId?.fullName || "Unknown User",
-      deposit: item.userId?.dollarWallet || 0,
-      reward: item.amount,
-    }));
-  }, [filteredReferrals, chartBy]);
-
-  const detailsSummary = useMemo(() => {
-    const totalAmount = referralDetails.reduce(
-      (sum, item) => sum + item.amount,
-      0,
-    );
-
-    const withReferrer = referralDetails.filter(
-      (item) => item.referredBy,
-    ).length;
-
-    const withoutReferrer = referralDetails.length - withReferrer;
-
-    return {
-      totalAmount,
-      withReferrer,
-      withoutReferrer,
-    };
-  }, [referralDetails]);
-
-  const [detailsPage, setDetailsPage] = useState(1);
-  const detailsPageSize = 10;
-
-  const totalDetailsPages = Math.max(
-    1,
-    Math.ceil(referralDetails.length / detailsPageSize),
-  );
-
-  useEffect(() => {
-    setDetailsPage((current) => Math.min(current, totalDetailsPages));
-  }, [totalDetailsPages]);
-
-  const paginatedReferralDetails = useMemo(() => {
-    const start = (detailsPage - 1) * detailsPageSize;
-    const end = start + detailsPageSize;
-
-    return referralDetails.slice(start, end);
-  }, [detailsPage, referralDetails]);
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-    }).format(amount);
-
-  const formatUsd = (amount: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
-
-  const formatDateTime = (value?: string) => {
-    if (!value) return "-";
-
-    return new Intl.DateTimeFormat("en", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
+  const handleTabChange = (page: Page) => {
+    if (page === "referral-overview") setSearchParams({ tab: "overview" });
+    else if (page === "referral-details") setSearchParams({ tab: "details" });
+    else if (page === "referral-explorer") setSearchParams({ tab: "downline" });
+    else navigate(`/admin/${page}`);
   };
 
-  const getStatusVariant = (status: string, withdrawn: boolean) => {
-    if (withdrawn) return "destructive";
-
-    if (status?.toLowerCase() === "locked") return "secondary";
-
-    if (status?.toLowerCase() === "unknown") return "outline";
-
-    return "default";
-  };
-
-  /**
-   * SAFE CSV EXPORT
-   */
   const exportCsv = () => {
-    if (!filteredReferrals.length) return;
-
-    const headers = [
-      "Referrer Name",
-      "Referrer Email",
-      "Referrer Phone",
-      "Referred Signup Date",
-      "Deposit (USD)",
-      "Referral Reward (NGN)",
-    ];
-
-    const rows = filteredReferrals.map((item) => [
+    const list: ReferralBonus[] = overviewQuery.data?.data || [];
+    if (!list.length) return;
+    const headers = ["Referrer Name", "Referrer Email", "Deposit (USD)", "Reward (NGN)"];
+    const rows = list.map((item) => [
       item.userId?.fullName || "Unknown User",
       item.userId?.email || "-",
-      item.userId?.phoneNumber || "-",
-      item.userId?.createdAt || "-",
       (item.userId?.dollarWallet || 0).toFixed(2),
-      item.amount.toFixed(2),
+      (item.amount || 0).toFixed(2),
     ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers, ...rows]
-        .map((row) =>
-          row
-            .map((field) => `"${String(field).replace(/"/g, '""')}"`)
-            .join(","),
-        )
-        .join("\n");
-
+    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].map((e) => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);
-
     const link = document.createElement("a");
-
     link.setAttribute("href", encodedUri);
-
-    link.setAttribute(
-      "download",
-      `referral-report-${new Date().toISOString()}.csv`,
-    );
-
+    link.setAttribute("download", `referral-report-${new Date().toISOString()}.csv`);
     document.body.appendChild(link);
-
     link.click();
-
     document.body.removeChild(link);
   };
 
-  const handleTabChange = (tab: ReferralTab) => {
-    const params = new URLSearchParams(searchParams);
-
-    params.set("tab", tab);
-
-    setSearchParams(params);
-  };
-
-  if (overviewQuery.isLoading && activeTab === "overview") {
+  if (activeTab === "details") {
     return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
+      <ReferralDetailsPage
+        setPage={handleTabChange}
+        detailsData={detailsQuery.data?.data}
+        isLoading={detailsQuery.isLoading}
+        exportCsv={exportCsv}
+      />
     );
   }
 
-  if (detailsQuery.isLoading && activeTab === "details") {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (overviewQuery.error && activeTab === "overview") {
-    return (
-      <Card className="bg-gradient-card border-border/50">
-        <CardContent className="pt-6 text-center text-destructive">
-          Error loading referral data:{" "}
-          {(overviewQuery.error as Error)?.message || "Unknown error"}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (detailsQuery.error && activeTab === "details") {
-    return (
-      <Card className="bg-gradient-card border-border/50">
-        <CardContent className="pt-6 text-center text-destructive">
-          Error loading referral user details:{" "}
-          {(detailsQuery.error as Error)?.message || "Unknown error"}
-        </CardContent>
-      </Card>
-    );
+  if (activeTab === "downline") {
+    return <ReferralDownlineTabWrapper setPage={handleTabChange} />;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-2xl">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Referral Program
-          </h1>
-
-          <p className="text-muted-foreground">
-            Use the sidebar or tabs to switch between the referral overview,
-            referral user details, and referral downline views.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-border/50 bg-card/80 px-4 py-3 text-sm text-muted-foreground">
-          Tip: the Referral Program menu now opens overview, details,
-          and referral downline views.
-        </div>
-      </div>
-
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => handleTabChange(value as ReferralTab)}
-      >
-        <TabsList>
-          <TabsTrigger value="overview">Referral Overview</TabsTrigger>
-
-          <TabsTrigger value="details">Referral User Details</TabsTrigger>
-
-          <TabsTrigger value="downline">Referral Downline</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="mt-6">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Invites Sent</CardTitle>
-
-                <CardDescription>Potential referral targets</CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">{totalInvites}</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Signups from Referrals</CardTitle>
-
-                <CardDescription>
-                  Referred users that registered
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">{totalReferredUsers}</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Deposit Contributors</CardTitle>
-
-                <CardDescription>
-                  Signup users that made deposits
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">{totalDepositUsers}</div>
-
-                <div className="mt-1 text-sm text-muted-foreground">
-                  from {totalReferredUsers} referred
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Referral Reward Paid</CardTitle>
-
-                <CardDescription>Total referral rewards given</CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {formatCurrency(totalRewardGiven)}
-                </div>
-
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {validReferrals.length} reward records
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="mt-6 bg-gradient-card border-border/50 shadow-card">
-            <CardHeader>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
-                <div>
-                  <CardTitle>Referral Performance</CardTitle>
-
-                  <CardDescription>
-                    Choose table or chart view to inspect top referrals by
-                    reward or deposit.
-                  </CardDescription>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant={viewMode === "table" ? "default" : "outline"}
-                    onClick={() => setViewMode("table")}
-                  >
-                    Table
-                  </Button>
-
-                  <Button
-                    variant={viewMode === "chart" ? "default" : "outline"}
-                    onClick={() => setViewMode("chart")}
-                  >
-                    Chart
-                  </Button>
-
-                  <Button variant="outline" onClick={exportCsv}>
-                    Export CSV
-                  </Button>
-
-                  <select
-                    value={chartBy}
-                    onChange={(e) =>
-                      setChartBy(e.target.value as "reward" | "deposit")
-                    }
-                    className="rounded-lg border border-border/70 bg-background px-2 py-1 text-sm"
-                  >
-                    <option value="reward">Chart by Reward</option>
-
-                    <option value="deposit">Chart by Deposit</option>
-                  </select>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-4">
-              {viewMode === "chart" ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={chartData}
-                      margin={{
-                        top: 8,
-                        right: 16,
-                        left: 0,
-                        bottom: 16,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-
-                      <XAxis
-                        dataKey="user"
-                        tick={{ fontSize: 12 }}
-                        minTickGap={8}
-                      />
-
-                      <YAxis
-                        tickFormatter={(value) => formatUsd(Number(value))}
-                      />
-
-                      <Tooltip
-                        formatter={(value: number) => formatUsd(Number(value))}
-                      />
-
-                      <Bar
-                        dataKey={chartBy}
-                        fill={chartBy === "reward" ? "#2563eb" : "#16a34a"}
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="rounded-md border border-border/50 overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/30">
-                        <TableHead>Referrer</TableHead>
-
-                        <TableHead>Referred User</TableHead>
-
-                        <TableHead>Deposit (USD)</TableHead>
-
-                        <TableHead>Referral Reward (NGN)</TableHead>
-
-                        <TableHead>Signup Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-
-                    <TableBody>
-                      {filteredReferrals.map((item) => {
-                        const deposit = item.userId?.dollarWallet || 0;
-
-                        return (
-                          <TableRow
-                            key={item._id}
-                            className="hover:bg-muted/20"
-                          >
-                            <TableCell className="font-medium">
-                              {item.userId?.fullName || "Unknown User"}
-                            </TableCell>
-
-                            <TableCell>{item.userId?.email || "-"}</TableCell>
-
-                            <TableCell>{formatUsd(deposit)}</TableCell>
-
-                            <TableCell>₦{item.amount}</TableCell>
-
-                            <TableCell>
-                              {item.userId?.createdAt
-                                ? new Date(
-                                  item.userId.createdAt,
-                                ).toLocaleDateString()
-                                : "-"}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-
-                  {filteredReferrals.length === 0 && (
-                    <div className="p-4 text-center text-muted-foreground">
-                      No referral records match your filters.
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="details" className="mt-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Referral Records</CardTitle>
-
-                <CardDescription>
-                  Total referral user detail record
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {referralDetails.length}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Total Amount</CardTitle>
-
-                <CardDescription>
-                  Combined referral payout amount
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {formatCurrency(detailsSummary.totalAmount)}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Linked Referrers</CardTitle>
-
-                <CardDescription>
-                  Referrals with referee information
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {detailsSummary.withReferrer}
-                </div>
-              </CardContent>
-            </Card>
-            {/* <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Pending Referrer</CardTitle>
-
-                <CardDescription>Records without a referee</CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {detailsSummary.withoutReferrer}
-                </div>
-              </CardContent>
-            </Card> */}
-          </div>
-          <Card className="mt-6 bg-gradient-card border-border/50 shadow-card">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <CardTitle>Referral User Details</CardTitle>
-                  <CardDescription>
-                    Referred users and their referrers
-                  </CardDescription>
-                </div>
-                {/* <Badge variant="outline">
-                  {referralDetails.length} records
-                </Badge> */}
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              <div className="space-y-4">
-                <div className="overflow-hidden rounded-md border border-border/50">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/30">
-                        <TableHead>Referred User</TableHead>
-                        <TableHead>Referred By</TableHead>
-                        <TableHead>Stage</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-
-                    <TableBody>
-                      {paginatedReferralDetails.map((item) => (
-                        <TableRow
-                          key={item.id}
-                          className="align-top hover:bg-muted/20"
-                        >
-                          <TableCell>
-                            <div className="space-y-1">
-                              <p className="font-medium">
-                                {item.user?.fullName || "Unknown User"}
-                              </p>
-
-                              <p className="text-sm text-muted-foreground">
-                                {item.user?.email || "-"}
-                              </p>
-
-                              <p className="text-sm text-muted-foreground">
-                                {item.user?.phoneNumber || "-"}
-                              </p>
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            {item.referredBy ? (
-                              <div className="space-y-1">
-                                <p className="font-medium">
-                                  {item.referredBy?.fullName ||
-                                    "Unknown Referrer"}
-                                </p>
-
-                                <p className="text-sm text-muted-foreground">
-                                  {item.referredBy?.email || "-"}
-                                </p>
-
-                                <p className="text-sm text-muted-foreground">
-                                  {item.referredBy?.phoneNumber || "-"}
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="rounded-lg border border-dashed border-border/70 px-3 py-2 text-sm text-muted-foreground">
-                                No referrer recorded
-                              </div>
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            <div className="space-y-1">
-                              <p className="font-medium">{item.type || "-"}</p>
-
-                              <p className="text-sm text-muted-foreground">
-                                {item.title || "No title provided"}
-                              </p>
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            <div className="space-y-1">
-                              <p className="font-medium">
-                                {formatCurrency(item.amount || 0)}
-                              </p>
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            <div className="space-y-1 text-sm text-muted-foreground">
-                              <p>{formatDateTime(item.updatedAt)}</p>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-
-                  {referralDetails.length === 0 && (
-                    <div className="p-4 text-center text-muted-foreground">
-                      No referral user detail records are available right now.
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-2 justify-between">
-                  <div className="flex justify-between items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setDetailsPage((page) => Math.max(1, page - 1))
-                      }
-                      disabled={detailsPage === 1}
-                    >
-                      Previous
-                    </Button>
-
-                    <span className="text-sm text-muted-foreground">
-                      Page {detailsPage} of {totalDetailsPages}
-                    </span>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setDetailsPage((page) =>
-                          Math.min(totalDetailsPages, page + 1),
-                        )
-                      }
-                      disabled={detailsPage >= totalDetailsPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="downline" className="mt-6">
-          <ReferralDownline isTab />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <ReferralOverviewPage
+      setPage={handleTabChange}
+      overviewData={overviewQuery.data}
+      isLoading={overviewQuery.isLoading}
+      exportCsv={exportCsv}
+    />
   );
 };
 

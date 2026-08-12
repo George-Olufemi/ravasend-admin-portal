@@ -248,7 +248,7 @@ const FeePage = () => {
             <DialogTrigger asChild>
               <Button
                 onClick={handleOpenDialog}
-                className="bg-gradient-primary hover:opacity-90 shadow-glow"
+                className="hover:opacity-90 shadow-glow"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Create {config.label}
@@ -293,7 +293,7 @@ const FeePage = () => {
                     disabled={
                       createMutation.isPending || updateMutation.isPending
                     }
-                    className="bg-gradient-primary hover:opacity-90"
+                    className="hover:opacity-90"
                   >
                     {createMutation.isPending || updateMutation.isPending ? (
                       <>

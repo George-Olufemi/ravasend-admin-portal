@@ -1,5 +1,5 @@
 import axios from "axios";
-import { AnyARecord } from "dns";
+// import { AnyARecord } from "dns";
 
 // const BASE_URL = "https://reva-backend-zwra.onrender.com";
 const BASE_URL = import.meta.env.VITE_API_URL;
@@ -51,6 +51,9 @@ export interface User {
   referralCode: string;
   referredBy: string;
   lastLogin: string;
+  isFirstDeposit: boolean;
+  isFirstConversion: boolean;
+
 }
 
 export interface LoginResponse {
@@ -162,6 +165,7 @@ export interface ReferralBonus {
   _id: string;
   userId: ReferralUser;
   amount: number;
+  referredCount?: number;
 }
 
 export interface ReferralBonusesResponse {
@@ -349,7 +353,7 @@ export const transactionAPI = {
 export const promoCodesAPI = {
   getAll: async (): Promise<PromoCodesResponse> => {
     try {
-      const response = await apiNoAuth.get("/api/v1/promo/getPromo");
+      const response = await api.get("/api/v1/promo/getPromo");
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -359,7 +363,7 @@ export const promoCodesAPI = {
           data: [],
         };
       }
-      throw error; // let real errors bubble up
+      throw error;
     }
   },
 
@@ -546,3 +550,18 @@ export const adminAndRolesAPI = {
     return response.data;
   },
 };
+
+export const campaignAPI = {
+  getAll: async () => {
+    const response = await api.get("/api/v1/admin/getAllCampaigns");
+    return response.data;
+  },
+  sendBulkEmail: async (data): Promise<any> => {
+    const response = await api.post("/api/v1/admin/send-bulk-email", data);
+    return response.data;
+  },
+  sendBulkPushNotification: async (data): Promise<any> => {
+    const response = await api.post("/api/v1/admin/send-bulk-in-app", data);
+    return response.data;
+  },
+}
