@@ -161,26 +161,26 @@ const Transactions = () => {
   };
 
   return (
-    <div className="p-7 flex flex-col space-y-6 min-h-full flex-1">
+    <div className="flex flex-col space-y-6 min-h-full flex-1">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Transactions</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             All user transactions on the platform
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <Badge variant="outline" className="text-xs">
             {transactions.length} Total Transactions
           </Badge>
           <Button
             onClick={handleDownloadCSV}
             variant="outline"
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 text-xs h-9"
             disabled={transactions.length === 0}
           >
-            <Download className="h-4 w-4" />
+            <Download className="h-3.5 w-3.5" />
             Export CSV
           </Button>
         </div>
@@ -331,8 +331,8 @@ const Transactions = () => {
           </div>
 
           {transactions.length > 0 && (
-            <div className="flex items-center justify-between pt-2 border-t border-border/50 shrink-0">
-              <span className="text-[12px] text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-border/50 shrink-0">
+              <span className="text-[12px] text-muted-foreground text-center sm:text-left">
                 Showing {startIndex + 1} - {Math.min(startIndex + PAGE_SIZE, transactions.length)} of {transactions.length} transactions
               </span>
               {totalPages > 1 && (

@@ -156,7 +156,7 @@ function SlidePanel({ open, onClose, title, children }: { open: boolean; onClose
   if (!open) return null;
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex justify-end" onClick={onClose}>
-      <div className="w-[440px] h-full bg-[#0F0D26] border-l border-border p-6 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full sm:w-[440px] h-full bg-[#0F0D26] border-l border-border p-4 sm:p-6 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
           <h2 className="text-[16px] font-bold text-foreground">{title}</h2>
           <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5">
@@ -306,30 +306,31 @@ function AdminRolesPage() {
   const isSubmitting = inviteMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="flex-1 overflow-y-auto p-7">
-      <PageHeader
-        title="Admin & Roles"
-        subtitle="Manage team access, roles, and permission policies"
-        action={
-          <PurpleBtn
-            onClick={() => {
-              setForm({ name: "", email: "", password: "", role: "Support Agent" });
-              setEditAdmin(null);
-              setInviteOpen(true);
-            }}
-          >
-            <Plus size={13} /> Invite Admin
-          </PurpleBtn>
-        }
-      />
+    <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Admin & Roles</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Manage team access, roles, and permission policies</p>
+        </div>
+        <PurpleBtn
+          onClick={() => {
+            setForm({ name: "", email: "", password: "", role: "Support Agent" });
+            setEditAdmin(null);
+            setInviteOpen(true);
+          }}
+          className="w-full sm:w-auto justify-center shrink-0"
+        >
+          <Plus size={13} /> Invite Admin
+        </PurpleBtn>
+      </div>
 
       {/* Tab toggle */}
-      <div className="flex items-center gap-1 mb-6 bg-white/5 border border-border rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 mb-6 bg-white/5 border border-border rounded-xl p-1 w-full sm:w-fit overflow-x-auto">
         {(["team", "permissions"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
-            className={`px-4 py-1.5 rounded-lg text-[12px] font-semibold capitalize transition-all ${
+            className={`px-4 py-1.5 rounded-lg text-[12px] font-semibold capitalize whitespace-nowrap transition-all ${
               activeTab === t ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
             style={activeTab === t ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}
@@ -342,7 +343,7 @@ function AdminRolesPage() {
       {activeTab === "team" && (
         <>
           {/* Role summary cards */}
-          <div className="grid grid-cols-6 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
             {allRoles.map((role) => {
               const count = displayAdmins.filter((a) => a.role === role).length;
               return (

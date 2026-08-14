@@ -248,7 +248,7 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
   const rawApiData = apiResponse?.data;
 
   return (
-    <div className="flex-1 overflow-y-auto p-7">
+    <div className={`flex-1 overflow-y-auto ${isTab ? "" : ""}`}>
       {!isTab && (
         <PageHeader
           title="Downline Explorer"
@@ -257,9 +257,9 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
       )}
 
       {/* Search Bar Box */}
-      <div className="bg-card border border-border rounded-xl p-6 mb-6">
+      <div className="bg-card border border-border rounded-xl p-4 sm:p-6 mb-6">
         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Search Referral Chain</p>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -270,7 +270,7 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
               placeholder="Enter referral code (e.g. 38B753), name, or email…"
             />
           </div>
-          <PurpleBtn onClick={() => handleSearch()} disabled={isLoading}>
+          <PurpleBtn onClick={() => handleSearch()} disabled={isLoading} className="justify-center">
             {isLoading ? <Loader2 className="animate-spin" size={13} /> : <GitMerge size={13} />} Explore Chain
           </PurpleBtn>
         </div>
@@ -285,7 +285,7 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
 
       {searched && !isLoading && resultTree && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <p className="text-[13px] font-bold text-foreground">
                 Downline for <span className="text-primary font-mono">{resultTree.code}</span>
@@ -305,7 +305,7 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
           </div>
 
           {/* Interactive Tree View */}
-          <div className="bg-card border border-border rounded-xl p-4 space-y-1 mb-6">
+          <div className="bg-card border border-border rounded-xl p-3 sm:p-4 space-y-1 mb-6 overflow-x-auto">
             <ReferralNodeRow node={resultTree} depth={0} />
           </div>
 
@@ -317,7 +317,7 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
             const totalTxns = allChildren.reduce((a, r) => a + r.user.txns, 0);
             
             return (
-              <div className="grid grid-cols-4 gap-3 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                 {[
                   { label: "Total Downline", value: String(countDownline(resultTree)) },
                   { label: "Active in Downline", value: String(activeCount) },
@@ -335,7 +335,7 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
 
           {/* Detailed Wallet & User Info from API */}
           {rawApiData && (
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Naira Wallet</p>
                 <p className="text-[20px] font-mono font-bold text-emerald-400">

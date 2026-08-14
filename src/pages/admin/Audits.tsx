@@ -150,23 +150,23 @@ const Audits = () => {
   }
 
   return (
-    <div className="p-7 flex flex-col space-y-6 min-h-full flex-1">
+    <div className="flex flex-col space-y-6 min-h-full flex-1">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Audit Logs</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Track and monitor all user activities and system events
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by feature, email, IP, browser..."
+              placeholder="Search by feature, email, IP..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-8"
+              className="pl-8 pr-8 text-sm"
             />
             {searchTerm && (
               <button
@@ -180,7 +180,7 @@ const Audits = () => {
           <Button
             onClick={downloadCSV}
             disabled={filteredAudits.length === 0}
-            className="flex items-center gap-2"
+            className="flex items-center justify-center gap-2 shrink-0"
           >
             <Download className="h-4 w-4" />
             Download CSV
@@ -272,8 +272,8 @@ const Audits = () => {
             </Table>
           </div>
           {filteredAudits.length > 0 && (
-            <div className="flex items-center justify-between pt-2 border-t border-border/50 shrink-0">
-              <span className="text-[12px] text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-border/50 shrink-0">
+              <span className="text-[12px] text-muted-foreground text-center sm:text-left">
                 Showing {startIndex + 1} - {Math.min(startIndex + PAGE_SIZE, filteredAudits.length)} of {filteredAudits.length} records
               </span>
               {totalPages > 1 && (

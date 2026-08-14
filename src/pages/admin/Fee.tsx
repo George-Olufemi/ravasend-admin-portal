@@ -248,13 +248,13 @@ const FeePage = () => {
             <DialogTrigger asChild>
               <Button
                 onClick={handleOpenDialog}
-                className="hover:opacity-90 shadow-glow"
+                className="w-full sm:w-auto hover:opacity-90 shadow-glow"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Create {config.label}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md bg-gradient-card border-border/50">
+            <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto bg-gradient-card border-border/50">
               <DialogHeader>
                 <DialogTitle>
                   {editingFee ? "Edit Fee" : `Create ${config.label}`}
@@ -312,7 +312,7 @@ const FeePage = () => {
           </Dialog>
         </div>
 
-        <div className="rounded-md border border-border/50 overflow-hidden">
+        <div className="rounded-md border border-border/50 overflow-x-auto w-full">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
@@ -378,8 +378,8 @@ const FeePage = () => {
         </div>
 
         {allTypeFees.length > ITEMS_PER_PAGE && (
-          <div className="flex items-center justify-between py-4">
-            <div className="text-sm text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-4">
+            <div className="text-sm text-muted-foreground text-center sm:text-left">
               Showing {startIndex + 1}-{Math.min(endIndex, allTypeFees.length)}{" "}
               of {allTypeFees.length} fees
             </div>
@@ -413,8 +413,8 @@ const FeePage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Fees Management</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Fees Management</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Manage conversion, forex, and withdrawal fees
         </p>
       </div>
@@ -431,26 +431,28 @@ const FeePage = () => {
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as FeeType)}
           >
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="conversion">
-                Conversion Fee
-                <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
-                  {feeData?.conversion?.length || 0}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="forex">
-                Foreign Bank Transfer Fee
-                <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
-                  {feeData?.forex?.length || 0}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="withdrawal">
-                Local Bank Transfer Fee
-                <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
-                  {feeData?.withdrawal?.length || 0}
-                </span>
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto pb-1">
+              <TabsList className="inline-flex sm:grid w-full sm:grid-cols-3 min-w-max sm:min-w-0">
+                <TabsTrigger value="conversion" className="whitespace-nowrap">
+                  Conversion Fee
+                  <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
+                    {feeData?.conversion?.length || 0}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="forex" className="whitespace-nowrap">
+                  Foreign Bank Transfer Fee
+                  <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
+                    {feeData?.forex?.length || 0}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="withdrawal" className="whitespace-nowrap">
+                  Local Bank Transfer Fee
+                  <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
+                    {feeData?.withdrawal?.length || 0}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <div className="mt-6">
               <TabsContent value="conversion" className="space-y-4">

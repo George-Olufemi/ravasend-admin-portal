@@ -1489,11 +1489,11 @@ const Campaigns = () => {
 	const paginatedCampaigns = campaigns.slice((campaignPg - 1) * campaignPerPage, campaignPg * campaignPerPage);
 
 	return (
-		<div className="p-7 flex flex-col space-y-6 min-h-full flex-1" onClick={() => setOpenMenu(null)}>
+		<div className="flex flex-col space-y-6 min-h-full flex-1" onClick={() => setOpenMenu(null)}>
 			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Campaigns</h1>
-					<p className="text-muted-foreground">Multi-channel messaging campaigns targeting your user segments</p>
+					<h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Campaigns</h1>
+					<p className="text-xs sm:text-sm text-muted-foreground">Multi-channel messaging campaigns targeting your user segments</p>
 				</div>
 				<Button
 					type="button"
@@ -1501,14 +1501,14 @@ const Campaigns = () => {
 						setView("new");
 						setStep(1);
 					}}
-					className="text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity shadow-glow text-[13px] w-fit"
+					className="text-white font-bold px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-glow text-[13px] w-full sm:w-auto shrink-0"
 				>
 					<Plus size={14} /> New Campaign
 				</Button>
 			</div>
 
 			{/* Metrics Row */}
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 				<StatCard label="Total Campaigns" value={String(campaigns.length)} />
 				<StatCard label="Active Campaigns" value={String(totalActive)} />
 				<StatCard label="Total Sent" value={fmtN(totalSent)} />
@@ -1518,7 +1518,7 @@ const Campaigns = () => {
 			{/* Campaigns Table Card */}
 			<Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
 				<CardContent className="flex-1 flex flex-col min-h-0 p-4 md:p-6 space-y-4 overflow-hidden">
-					<div className="flex-1 overflow-auto w-full rounded-lg border border-border/50">
+					<div className="flex-1 overflow-x-auto w-full rounded-lg border border-border/50">
 						<table className="w-full text-left text-[13px]">
 							<thead className="bg-muted/30 text-muted-foreground text-[11px] font-semibold border-b border-border/50 uppercase tracking-wider">
 								<tr>

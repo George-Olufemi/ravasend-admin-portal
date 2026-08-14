@@ -202,10 +202,10 @@ const PromoCodes = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Promo Codes</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Promo Codes</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Manage promotional codes and discounts
           </p>
         </div>
@@ -220,12 +220,12 @@ const PromoCodes = () => {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="">
+            <Button className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Create Promo Code
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md bg-gradient-card border-border/50">
+          <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto bg-gradient-card border-border/50">
             <DialogHeader>
               <DialogTitle>
                 {editingPromo ? "Edit Promo Code" : "Create New Promo Code"}
@@ -237,7 +237,7 @@ const PromoCodes = () => {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="discount">Discount Amount (₦)</Label>
                   <Input
@@ -268,7 +268,7 @@ const PromoCodes = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="maxUsage">Max Usage Count</Label>
                   <Input
@@ -339,7 +339,7 @@ const PromoCodes = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border border-border/50 overflow-hidden">
+          <div className="rounded-md border border-border/50 overflow-x-auto w-full">
             {promoCodes.length === 0 ? (
               <>
                 <div className="text-center py-10">

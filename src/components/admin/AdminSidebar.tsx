@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   UserCog,
   LogOut,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import logoImg from "@/assets/images/ravasend.png";
@@ -38,6 +39,12 @@ interface NavItem {
 interface NavGroup {
   label?: string;
   items: NavItem[];
+}
+
+interface AdminSidebarProps {
+  withdrawalPaused?: boolean;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 const NAV: NavGroup[] = [
@@ -93,7 +100,7 @@ function ImageWithFallback({ src, alt, className }: { src: string; alt: string; 
   return <img src={src} alt={alt} className={className} onError={() => setError(true)} />;
 }
 
-export function AdminSidebar({ withdrawalPaused }: { withdrawalPaused?: boolean }) {
+export function AdminSidebar({ withdrawalPaused, isMobileOpen, onCloseMobile }: AdminSidebarProps) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ referral: true });
   const navigate = useNavigate();
   const location = useLocation();
@@ -142,11 +149,35 @@ export function AdminSidebar({ withdrawalPaused }: { withdrawalPaused?: boolean 
   };
 
   return (
-    <aside className="w-[210px] shrink-0 h-screen flex flex-col border-r border-border/50 overflow-hidden" style={{ background: "#07051A" }}>
-      <div className="h-[60px] flex items-center px-4 border-b border-border/50 gap-3 shrink-0">
-        <ImageWithFallback src={logoImg} alt="Ravasend" className="size-8 rounded-lg object-contain" />
-        <span className="text-[13px] font-bold text-foreground tracking-tight">Ravasend Admin</span>
-      </div>
+    <>
+      {/* Mobile backdrop overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
+          onClick={onCloseMobile}
+        />
+      )}
+
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-[240px] lg:w-[210px] shrink-0 h-screen flex flex-col border-r border-border/50 overflow-hidden transition-transform duration-300 ease-in-out ${
+          isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+        style={{ background: "#07051A" }}
+      >
+        <div className="h-[60px] flex items-center justify-between px-4 border-b border-border/50 shrink-0">
+          <div className="flex items-center gap-3">
+            <ImageWithFallback src={logoImg} alt="Ravasend" className="size-8 rounded-lg object-contain" />
+            <span className="text-[13px] font-bold text-foreground tracking-tight">Ravasend Admin</span>
+          </div>
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="lg:hidden p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
 
       {withdrawalPaused && (
         <div className="mx-3 mt-3 px-3 py-2 bg-red-500/10 border border-red-500/25 rounded-lg flex items-center gap-2 shrink-0">
@@ -279,6 +310,7 @@ export function AdminSidebar({ withdrawalPaused }: { withdrawalPaused?: boolean 
         </button>
       </div>
     </aside>
+    </>
   );
 }
 

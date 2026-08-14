@@ -202,7 +202,10 @@ const WithdrawalControls = () => {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <PageHeader title="Withdrawal Controls" subtitle="Platform-wide withdrawal management and emergency kill switch" />
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Withdrawal Controls</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Platform-wide withdrawal management and emergency kill switch</p>
+      </div>
 
       {toast && (
         <div
@@ -216,13 +219,13 @@ const WithdrawalControls = () => {
 
       {/* Kill Switch Main Card */}
       <div
-        className={`rounded-2xl border-2 p-8 mb-6 transition-all ${paused ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"
+        className={`rounded-2xl border-2 p-5 sm:p-8 mb-6 transition-all ${paused ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"
           }`}
       >
         <div className="flex items-center justify-between gap-6 flex-wrap">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4 sm:gap-5">
             <div
-              className={`size-[56px] rounded-2xl flex items-center justify-center transition-colors ${paused ? "bg-red-500/15" : "bg-emerald-500/10"
+              className={`size-[48px] sm:size-[56px] rounded-2xl flex items-center justify-center shrink-0 transition-colors ${paused ? "bg-red-500/15" : "bg-emerald-500/10"
                 }`}
             >
               {isStatusLoading ? (
@@ -234,7 +237,7 @@ const WithdrawalControls = () => {
               )}
             </div>
             <div>
-              <p className="text-[16px] font-bold text-foreground">Withdrawal Kill Switch</p>
+              <p className="text-[15px] sm:text-[16px] font-bold text-foreground">Withdrawal Kill Switch</p>
               {isStatusLoading ? (
                 <p className="text-[13px] text-muted-foreground mt-1">Loading status...</p>
               ) : isStatusError ? (
@@ -254,7 +257,7 @@ const WithdrawalControls = () => {
             <button
               disabled={toggleMutation.isPending}
               onClick={() => openModal("resume")}
-              className="flex items-center gap-2 bg-emerald-500 text-white font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 text-white font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50"
             >
               {toggleMutation.isPending ? <Loader2 className="animate-spin" size={17} /> : <PlayCircle size={17} />} Resume Withdrawals
             </button>
@@ -262,7 +265,7 @@ const WithdrawalControls = () => {
             <button
               disabled={toggleMutation.isPending}
               onClick={() => openModal("pause")}
-              className="flex items-center gap-2 bg-red-500 text-white font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-red-400 transition-colors shadow-lg shadow-red-500/20 disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-red-500 text-white font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-red-400 transition-colors shadow-lg shadow-red-500/20 disabled:opacity-50"
             >
               {toggleMutation.isPending ? <Loader2 className="animate-spin" size={17} /> : <PauseCircle size={17} />} Pause All Withdrawals
             </button>
@@ -270,7 +273,7 @@ const WithdrawalControls = () => {
         </div>
 
         {paused && (
-          <div className="mt-6 pt-6 border-t border-red-500/15 grid grid-cols-3 gap-4">
+          <div className="mt-6 pt-6 border-t border-red-500/15 grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[{ l: "Held Requests", v: "47" }, { l: "Amount Held", v: "₦4.2M" }, { l: "Duration", v: "2h 14m" }].map((s) => (
               <div key={s.l} className="bg-red-500/8 border border-red-500/15 rounded-xl p-4">
                 <p className="text-[9px] text-red-400/60 font-bold uppercase tracking-widest mb-1">{s.l}</p>

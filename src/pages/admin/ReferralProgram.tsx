@@ -87,7 +87,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 function TableWrap({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white/[0.025] border border-border rounded-xl overflow-hidden mb-4">
+    <div className="bg-white/[0.025] border border-border rounded-xl overflow-x-auto w-full mb-4">
       <table className="w-full text-left border-collapse">{children}</table>
     </div>
   );
@@ -98,7 +98,7 @@ function THead({ cols }: { cols: string[] }) {
     <thead>
       <tr className="border-b border-border bg-white/[0.02]">
         {cols.map((c, i) => (
-          <th key={i} className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+          <th key={i} className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
             {c}
           </th>
         ))}
@@ -110,7 +110,7 @@ function THead({ cols }: { cols: string[] }) {
 function Pagination({ page, total, perPage, onChange }: { page: number; total: number; perPage: number; onChange: (p: number) => void }) {
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   return (
-    <div className="flex items-center justify-between mt-4 text-[12px] text-muted-foreground">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-[12px] text-muted-foreground">
       <span>Showing {Math.min((page - 1) * perPage + 1, total)} - {Math.min(page * perPage, total)} of {total}</span>
       <div className="flex items-center gap-2">
         <button disabled={page <= 1} onClick={() => onChange(page - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Previous</button>
@@ -150,7 +150,7 @@ function ViralLoopEditor() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between pb-3 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-border gap-2">
         <div>
           <p className="text-[13px] font-bold text-foreground">7-Step Tiered Rewards</p>
           <p className="text-[11px] text-muted-foreground">
@@ -176,7 +176,7 @@ function ViralLoopEditor() {
               step.active ? "bg-white/[0.02] border-border" : "bg-white/[0.008] border-border/40 opacity-60"
             }`}
           >
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div className="flex gap-2.5 min-w-0">
                 <div className="size-6 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 mt-0.5">
                   {step.id}
@@ -244,24 +244,24 @@ function ReferralOverviewPage({
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-1">
-          <h1 className="text-xl font-bold text-foreground">Referral Program</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Referral Program</h1>
           <PurpleBtn size="sm" onClick={exportCsv}><Download size={12} /> Export CSV</PurpleBtn>
         </div>
-        <p className="text-[13px] text-muted-foreground">Track every invite, signup, and reward across your network.</p>
+        <p className="text-xs sm:text-sm text-muted-foreground">Track every invite, signup, and reward across your network.</p>
       </div>
 
-      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-full sm:w-fit overflow-x-auto">
         {REFERRAL_TABS.map(t => (
           <button key={t.page} onClick={() => setPage(t.page)}
-            className={`px-5 py-2 rounded-lg text-[12px] font-semibold transition-all ${t.page === "referral-overview" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-4 sm:px-5 py-2 rounded-lg text-[12px] font-semibold whitespace-nowrap transition-all ${t.page === "referral-overview" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             style={t.page === "referral-overview" ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}>
             {t.label}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-7">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
         <div className="bg-white/[0.025] border border-border rounded-xl p-5 flex items-start gap-3">
           <div className="size-9 rounded-xl bg-white/5 border border-border flex items-center justify-center shrink-0"><Users size={16} className="text-primary" /></div>
           <div>
@@ -296,7 +296,7 @@ function ReferralOverviewPage({
         </div>
       </div>
 
-      <div className="bg-white/[0.025] border border-border rounded-xl p-6 mb-6">
+      <div className="bg-white/[0.025] border border-border rounded-xl p-4 sm:p-6 mb-6">
         <div className="flex items-center justify-between mb-5">
           <div>
             <p className="text-[13px] font-bold text-foreground">Top Referrers</p>
@@ -315,18 +315,18 @@ function ReferralOverviewPage({
                 const converted = r.userId?.dollarWallet && r.userId.dollarWallet > 0 ? 1 : 0;
                 const pct = referredCount > 0 ? Math.round((converted / referredCount) * 100) : 0;
                 return (
-                  <div key={i} className="flex items-center gap-4 group">
-                    <div className="flex items-center gap-2.5 w-52 shrink-0">
+                  <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 group border-b border-border/30 sm:border-0 pb-3 sm:pb-0">
+                    <div className="flex items-center gap-2.5 w-full sm:w-52 shrink-0">
                       <div className="size-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                         style={{ background: `hsl(${260 + i * 30}, 70%, 55%)` }}>
                         {r.userId?.fullName?.split(" ").map(w => w[0]).join("").slice(0, 2) || "??"}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-semibold text-foreground truncate">{r.userId?.fullName || "Unknown User"}</p>
                         <p className="text-[10px] text-muted-foreground truncate">{r.userId?.email || "-"}</p>
                       </div>
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 w-full">
                       <div className="h-7 bg-secondary rounded-lg overflow-hidden relative">
                         <div className="h-full rounded-lg flex items-center justify-end px-2.5 transition-all"
                           style={{ width: `${Math.min(100, Math.max(20, (r.amount || 0) / 30 * 100))}%`, minWidth: 60, background: `linear-gradient(90deg, hsl(${260 + i * 30}, 70%, 45%), hsl(${260 + i * 30}, 70%, 55%))` }}>
@@ -334,8 +334,8 @@ function ReferralOverviewPage({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 w-36 shrink-0 text-right">
-                      <div className="text-right flex-1">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-36 shrink-0">
+                      <div className="text-left sm:text-right flex-1">
                         <p className="text-[11px] font-bold text-foreground">{referredCount} referred</p>
                         <p className={`text-[10px] font-semibold ${pct >= 50 ? "text-emerald-400" : pct > 0 ? "text-amber-400" : "text-zinc-500"}`}>{pct}% converted</p>
                       </div>
@@ -364,8 +364,8 @@ function ReferralOverviewPage({
         <p className="text-[12px] text-muted-foreground ml-7">Configure rewards at each step of the referral journey. Referrers can earn up to ₦13,869 per successful invite.</p>
       </div>
 
-      <div className="grid grid-cols-[1fr_340px] gap-5 mb-6">
-        <div className="bg-white/[0.025] border border-border rounded-xl p-5 overflow-y-auto max-h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 mb-6">
+        <div className="bg-white/[0.025] border border-border rounded-xl p-4 sm:p-5 overflow-y-auto max-h-[600px]">
           <ViralLoopEditor />
         </div>
         <div className="space-y-4">
@@ -472,22 +472,22 @@ function ReferralDetailsPage({
   const paged = filtered.slice((pg - 1) * perPage, pg * perPage);
 
   return (
-    <div className="flex-1 overflow-y-auto p-7">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold text-foreground">Referral Program</h1>
+    <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Referral Program</h1>
         <PurpleBtn size="sm" onClick={exportCsv}><Download size={12} /> Export CSV</PurpleBtn>
       </div>
-      <p className="text-[13px] text-muted-foreground mb-6">Track every invite, signup, and reward across your network.</p>
-      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-fit">
+      <p className="text-xs sm:text-sm text-muted-foreground mb-6">Track every invite, signup, and reward across your network.</p>
+      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-full sm:w-fit overflow-x-auto">
         {REFERRAL_TABS.map(t => (
           <button key={t.page} onClick={() => setPage(t.page)}
-            className={`px-5 py-2 rounded-lg text-[12px] font-semibold transition-all ${t.page === "referral-details" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-4 sm:px-5 py-2 rounded-lg text-[12px] font-semibold whitespace-nowrap transition-all ${t.page === "referral-details" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             style={t.page === "referral-details" ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}>
             {t.label}
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard label="Referral Records" value={String(rows.length)} sub="Total events logged" />
         <StatCard label="Total Rewards" value={`₦${rows.reduce((a, r) => a + r.amount, 0).toFixed(2)}`} sub="Combined payout amount" />
         <StatCard label="Referral Linked" value={String(rows.filter(r => r.by).length)} sub="Records with referrer" />
@@ -563,38 +563,55 @@ function ReferralDownlineTabWrapper({ setPage }: { setPage: (p: Page) => void })
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-7">
+    <div className="flex-1 overflow-y-auto">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold text-foreground">Referral Program</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+          Referral Program
+        </h1>
       </div>
-      <p className="text-[13px] text-muted-foreground mb-6">Track every invite, signup, and reward across your network.</p>
 
-      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-fit">
+      <p className="text-xs sm:text-sm text-muted-foreground mb-6">
+        Track every invite, signup, and reward across your network.
+      </p>
+
+      {/* Referral tabs */}
+      <div className="flex items-center gap-1 mb-7 bg-white/[0.03] border border-border rounded-xl p-1 w-full sm:w-fit overflow-x-auto">
         {REFERRAL_TABS.map((t) => (
           <button
             key={t.page}
             onClick={() => setPage(t.page)}
-            className={`px-5 py-2 rounded-lg text-[12px] font-semibold transition-all ${
-              t.page === "referral-explorer" ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+            className={`px-4 sm:px-5 py-2 rounded-lg text-[12px] font-semibold whitespace-nowrap transition-all ${
+              t.page === "referral-explorer"
+                ? "text-white shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
-            style={t.page === "referral-explorer" ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}
+            style={
+              t.page === "referral-explorer"
+                ? {
+                    background:
+                      "linear-gradient(135deg,#7B3FE4,#5B2AB8)",
+                  }
+                : {}
+            }
           >
             {t.label}
           </button>
         ))}
       </div>
 
+      {/* Downline content */}
       <ReferralDownline isTab />
     </div>
   );
 }
 
-// ─── Main Component ──────────────────────────────────────────────────────────
-
 const ReferralProgram = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const activeTab = (searchParams.get("tab") as "overview" | "details" | "downline") ?? "overview";
+
+  const activeTab =
+    (searchParams.get("tab") as "overview" | "details" | "downline") ??
+    "overview";
 
   const overviewQuery = useQuery({
     queryKey: ["referrals"],
@@ -608,27 +625,51 @@ const ReferralProgram = () => {
   });
 
   const handleTabChange = (page: Page) => {
-    if (page === "referral-overview") setSearchParams({ tab: "overview" });
-    else if (page === "referral-details") setSearchParams({ tab: "details" });
-    else if (page === "referral-explorer") setSearchParams({ tab: "downline" });
-    else navigate(`/admin/${page}`);
+    if (page === "referral-overview") {
+      setSearchParams({ tab: "overview" });
+    } else if (page === "referral-details") {
+      setSearchParams({ tab: "details" });
+    } else if (page === "referral-explorer") {
+      setSearchParams({ tab: "downline" });
+    } else {
+      navigate(`/admin/${page}`);
+    }
   };
 
   const exportCsv = () => {
     const list: ReferralBonus[] = overviewQuery.data?.data || [];
+
     if (!list.length) return;
-    const headers = ["Referrer Name", "Referrer Email", "Deposit (USD)", "Reward (NGN)"];
+
+    const headers = [
+      "Referrer Name",
+      "Referrer Email",
+      "Deposit (USD)",
+      "Reward (NGN)",
+    ];
+
     const rows = list.map((item) => [
       item.userId?.fullName || "Unknown User",
       item.userId?.email || "-",
       (item.userId?.dollarWallet || 0).toFixed(2),
       (item.amount || 0).toFixed(2),
     ]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].map((e) => e.join(",")).join("\n");
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows]
+        .map((e) => e.join(","))
+        .join("\n");
+
     const encodedUri = encodeURI(csvContent);
+
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `referral-report-${new Date().toISOString()}.csv`);
+    link.setAttribute(
+      "download",
+      `referral-report-${new Date().toISOString()}.csv`
+    );
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
