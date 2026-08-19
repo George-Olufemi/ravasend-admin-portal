@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	Plus,
@@ -17,57 +17,84 @@ import {
 	Target,
 	ChevronLeft,
 	ChevronRight,
-	Download,
-	Calendar,
+	Eye,
+	Clock,
+	Send,
+	Edit,
+	TrendingUp,
 } from "lucide-react";
-import { usersAPI, campaignAPI, User } from "@/lib/api";
+import {
+	campaignAPI,
+	usersAPI,
+	User,
+	CampaignItem,
+} from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
-
-// ─── Helpers & Formatting ───────────────────────────────────────────────────
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogFooter,
+} from "@/components/ui/dialog";
 
 function fmtN(num: number) {
-	return new Intl.NumberFormat().format(num);
+	return new Intl.NumberFormat().format(num || 0);
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, isLoading }: { label: string; value: string; isLoading?: boolean }) {
 	return (
 		<Card className="bg-gradient-card border-border/50 shadow-card">
 			<CardContent className="p-5">
 				<p className="text-[12px] font-medium text-muted-foreground">{label}</p>
-				<p className="text-2xl font-bold tracking-tight text-foreground mt-1">{value}</p>
+				{isLoading ? (
+					<div className="mt-2 flex items-center gap-2">
+						<LoadingSpinner size="sm" />
+					</div>
+				) : (
+					<p className="text-2xl font-bold tracking-tight text-foreground mt-1">{value}</p>
+				)}
 			</CardContent>
 		</Card>
 	);
 }
 
 function StatusBadge({ status }: { status: string }) {
-	if (status === "active") {
+	const normalized = (status || "").toLowerCase();
+	if (normalized === "active" || normalized === "completed") {
 		return (
-			<Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-				Active
+			<Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 capitalize">
+				{normalized}
 			</Badge>
 		);
 	}
-	if (status === "paused") {
+	if (normalized === "paused") {
 		return (
-			<Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20">
+			<Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 capitalize">
 				Paused
 			</Badge>
 		);
 	}
 	return (
-		<Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border">
-			{status}
+		<Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border capitalize">
+			{status || "Unknown"}
 		</Badge>
 	);
 }
 
 function ChannelBadge({ ch }: { ch: string }) {
-	switch (ch) {
+	const normalized = ch.trim().toLowerCase();
+	switch (normalized) {
 		case "email":
 			return (
 				<Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] gap-1">
@@ -81,23 +108,23 @@ function ChannelBadge({ ch }: { ch: string }) {
 				</Badge>
 			);
 		case "inapp-popup":
+		case "popup":
 			return (
 				<Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px] gap-1">
 					<MonitorPlay size={10} /> In-App Pop-up
 				</Badge>
 			);
 		case "inapp-banner":
+		case "banner":
 			return (
 				<Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] gap-1">
 					<Image size={10} /> In-App Banner
 				</Badge>
 			);
 		default:
-			return <Badge variant="outline" className="text-[10px]">{ch}</Badge>;
+			return <Badge variant="outline" className="text-[10px] capitalize">{ch}</Badge>;
 	}
 }
-
-// ─── Goal & Segment Constants ───────────────────────────────────────────────
 
 const GOAL_OPTIONS = [
 	{ id: "deposit", label: "Deposit", icon: "💰", desc: "Receive funds into wallet", hasDepositConfig: true },
@@ -138,54 +165,7 @@ const DEPOSIT_TYPES: Record<string, string[]> = {
 
 const GOAL_CURRENCIES = ["NGN", "USD", "GBP", "EUR", "GHS", "USDT", "USDC", "BTC", "ETH", "SOL"];
 
-const INITIAL_CAMPAIGNS = [
-	{
-		id: "c1",
-		name: "First Deposit 7-Day Push",
-		segment: "New Users — No First Deposit",
-		channels: ["push", "email"],
-		status: "active",
-		sent: 1420,
-		opened: 852,
-		converted: 312,
-		steps: 4,
-		date: "Aug 01",
-		goal: "Deposit",
-		reward: "NGN 5,000",
-	},
-	{
-		id: "c2",
-		name: "Dormant User Re-Engagement",
-		segment: "Lapsed Users — No Deposit",
-		channels: ["email"],
-		status: "active",
-		sent: 3890,
-		opened: 1120,
-		converted: 145,
-		steps: 3,
-		date: "Aug 05",
-		goal: "Send Money",
-		reward: "Promo: WELCOME20",
-	},
-	{
-		id: "c3",
-		name: "KYC Tier 2 Nudge",
-		segment: "Deposited, Never Transacted",
-		channels: ["push", "inapp-popup"],
-		status: "paused",
-		sent: 940,
-		opened: 420,
-		converted: 88,
-		steps: 2,
-		date: "Jul 20",
-		goal: "KYC Verification",
-		reward: "None",
-	},
-];
-
-// ─── Banner Upload Widget ───────────────────────────────────────────────────
-
-function BannerUploadWidget() {
+function BannerUploadWidget({ onBannerChange }: { onBannerChange?: (url: string) => void }) {
 	const [preview, setPreview] = React.useState<string | null>(null);
 	const [bannerPos, setBannerPos] = React.useState<"Top" | "Bottom">("Top");
 	const [deepLink, setDeepLink] = React.useState("");
@@ -195,7 +175,11 @@ function BannerUploadWidget() {
 	const handleFile = (file: File) => {
 		if (!file.type.startsWith("image/")) return;
 		const reader = new FileReader();
-		reader.onload = (e) => setPreview(e.target?.result as string);
+		reader.onload = (e) => {
+			const res = e.target?.result as string;
+			setPreview(res);
+			if (onBannerChange) onBannerChange(res);
+		};
 		reader.readAsDataURL(file);
 	};
 
@@ -243,6 +227,7 @@ function BannerUploadWidget() {
 							onClick={(e) => {
 								e.stopPropagation();
 								setPreview(null);
+								if (onBannerChange) onBannerChange("");
 							}}
 							className="absolute top-2 right-2 size-6 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
 						>
@@ -291,10 +276,435 @@ function BannerUploadWidget() {
 	);
 }
 
-// ─── Main Campaigns Component ───────────────────────────────────────────────
+function CampaignDetailSheet({
+	campaignId,
+	onClose,
+	onUpdateStatus,
+}: {
+	campaignId: string | null;
+	onClose: () => void;
+	onUpdateStatus: (id: string, currentStatus: string) => void;
+}) {
+	const [tab, setTab] = useState<"overview" | "content" | "log">("overview");
+
+	const { data: detailResponse, isLoading } = useQuery({
+		queryKey: ["campaign-detail", campaignId],
+		queryFn: () => campaignAPI.getCampaignById(campaignId!),
+		enabled: !!campaignId,
+	});
+
+	const campaign = detailResponse?.data;
+
+	if (!campaignId) return null;
+
+	return (
+		<Sheet open={!!campaignId} onOpenChange={(open) => { if (!open) onClose(); }}>
+			<SheetContent side="right" className="w-full sm:max-w-[560px] overflow-y-auto bg-background p-6">
+				<SheetHeader className="mb-4">
+					<SheetTitle className="text-xl font-bold text-foreground">
+						{isLoading ? "Loading details..." : campaign?.campaignName || "Campaign Details"}
+					</SheetTitle>
+				</SheetHeader>
+
+				{isLoading ? (
+					<div className="flex items-center justify-center py-20">
+						<LoadingSpinner size="lg" />
+					</div>
+				) : !campaign ? (
+					<div className="text-center py-10 text-muted-foreground text-sm">
+						Campaign record not found.
+					</div>
+				) : (
+					<div className="space-y-5">
+						{/* Meta row */}
+						<div className="flex items-center gap-2 mb-4 flex-wrap">
+							<StatusBadge status={campaign.status} />
+							<span className="text-[10px] text-muted-foreground bg-white/[0.04] border border-border px-2 py-0.5 rounded-md">
+								{campaign.depositType || campaign.deliveryStrategy || "General"}
+							</span>
+							<span className="text-[10px] text-muted-foreground ml-auto">
+								Created {new Date(campaign.createdAt).toLocaleDateString()}
+							</span>
+						</div>
+
+						{/* Action buttons */}
+						<div className="flex gap-2 mb-5">
+							<button
+								type="button"
+								onClick={() => onUpdateStatus(campaign._id, campaign.status)}
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-border text-muted-foreground hover:text-foreground transition-colors bg-secondary/50"
+							>
+								{campaign.status === "active" ? (
+									<><PauseCircle size={12} className="text-amber-400" /> Pause Campaign</>
+								) : (
+									<><PlayCircle size={12} className="text-emerald-400" /> Resume Campaign</>
+								)}
+							</button>
+						</div>
+
+						{/* Navigation Tabs */}
+						<div className="flex gap-1 mb-5 bg-secondary/50 rounded-xl p-1 border border-border">
+							{(
+								[
+									["overview", "Overview"],
+									["content", "Content"],
+									["log", "Delivery Log"],
+								] as const
+							).map(([id, label]) => (
+								<button
+									key={id}
+									type="button"
+									onClick={() => setTab(id)}
+									className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-all ${tab === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+										}`}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+
+						{/* ── Overview Tab ── */}
+						{tab === "overview" && (
+							<div className="space-y-5">
+								{/* Performance KPIs */}
+								<div className="grid grid-cols-2 gap-3">
+									{[
+										{
+											label: "Recipients",
+											value: fmtN(campaign.recipients?.length || campaign.totalRecipients || 0),
+											sub: "target recipients",
+											icon: <Send size={13} className="text-primary" />,
+										},
+										{
+											label: "Total Sent",
+											value: fmtN(campaign.totalSent || 0),
+											sub: "dispatched messages",
+											icon: <Send size={13} className="text-sky-400" />,
+										},
+										{
+											label: "Opened",
+											value: fmtN(campaign.totalOpened || 0),
+											sub: `${campaign.totalSent ? Math.round(((campaign.totalOpened || 0) / campaign.totalSent) * 100) : 0}% open rate`,
+											icon: <Eye size={13} className="text-emerald-400" />,
+										},
+										{
+											label: "Delivered",
+											value: fmtN(campaign.totalDelivered || 0),
+											sub: "successfully delivered",
+											icon: <CheckCircle2 size={13} className="text-amber-400" />,
+										},
+									].map((k) => (
+										<div key={k.label} className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
+											<div className="size-8 rounded-lg bg-white/[0.04] border border-border flex items-center justify-center shrink-0">
+												{k.icon}
+											</div>
+											<div>
+												<p className="text-[18px] font-bold text-foreground leading-none mb-0.5">{k.value}</p>
+												<p className="text-[10px] text-muted-foreground font-semibold">{k.label}</p>
+												<p className="text-[9px] text-muted-foreground/60">{k.sub}</p>
+											</div>
+										</div>
+									))}
+								</div>
+
+								{/* Engagement Funnel bar */}
+								<div className="bg-card border border-border rounded-xl p-4 space-y-2.5">
+									<p className="text-[11px] font-bold text-foreground mb-3">Engagement Breakdown</p>
+									{[
+										{
+											label: "Total Sent",
+											val: campaign.totalSent || 0,
+											pct: 100,
+											color: "bg-primary/60",
+										},
+										{
+											label: "Delivered",
+											val: campaign.totalDelivered || 0,
+											pct: campaign.totalSent ? Math.round(((campaign.totalDelivered || 0) / campaign.totalSent) * 100) : 0,
+											color: "bg-sky-500/70",
+										},
+										{
+											label: "Opened",
+											val: campaign.totalOpened || 0,
+											pct: campaign.totalSent ? Math.round(((campaign.totalOpened || 0) / campaign.totalSent) * 100) : 0,
+											color: "bg-emerald-500/70",
+										},
+										{
+											label: "Clicked",
+											val: campaign.totalClicked || 0,
+											pct: campaign.totalSent ? Math.round(((campaign.totalClicked || 0) / campaign.totalSent) * 100) : 0,
+											color: "bg-amber-500/70",
+										},
+									].map((row) => (
+										<div key={row.label}>
+											<div className="flex justify-between mb-1">
+												<span className="text-[10px] font-semibold text-muted-foreground">{row.label}</span>
+												<span className="text-[10px] font-bold text-foreground">
+													{fmtN(row.val)} <span className="text-muted-foreground font-normal">({row.pct}%)</span>
+												</span>
+											</div>
+											<div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+												<div className={`h-full rounded-full ${row.color} transition-all`} style={{ width: `${row.pct}%` }} />
+											</div>
+										</div>
+									))}
+								</div>
+
+								{/* Campaign settings */}
+								<div className="bg-card border border-border rounded-xl divide-y divide-border">
+									<p className="px-4 py-3 text-[11px] font-bold text-foreground">Campaign Settings</p>
+									{[
+										{ label: "Campaign Name", value: campaign.campaignName },
+										{ label: "Deposit Type", value: campaign.depositType || "—" },
+										{
+											label: "Channel Type",
+											value: (
+												<div className="flex gap-1 flex-wrap justify-end">
+													{(campaign.campaignType || "email").split(",").map((ch) => (
+														<ChannelBadge key={ch} ch={ch} />
+													))}
+												</div>
+											),
+										},
+										{ label: "Reward", value: <span className="text-emerald-400 font-semibold">{campaign.conversionReward || "None"}</span> },
+										{ label: "Delivery Strategy", value: campaign.deliveryStrategy || "—" },
+										{ label: "Delivery Time", value: campaign.deliveryTime || "—" },
+										{ label: "Delivery Date", value: campaign.deliveryDate ? new Date(campaign.deliveryDate).toLocaleDateString() : "—" },
+										{ label: "Timezone", value: campaign.deliveryTimezone || "—" },
+										{
+											label: "Frequency",
+											value: campaign.deliveryFrequency
+												? `${campaign.deliveryFrequencyValue ?? 1} ${campaign.deliveryFrequencyUnit ?? "hours"} (${campaign.deliveryFrequency})`
+												: "—",
+										},
+										{ label: "Next Delivery", value: campaign.nextDeliveryAt ? new Date(campaign.nextDeliveryAt).toLocaleString() : "—" },
+										{ label: "Recipients Count", value: fmtN(campaign.recipients?.length || campaign.totalRecipients || 0) },
+									].map((row) => (
+										<div key={row.label} className="flex items-start justify-between px-4 py-2.5 gap-4">
+											<span className="text-[11px] text-muted-foreground shrink-0">{row.label}</span>
+											<span className="text-[11px] text-foreground text-right">{row.value}</span>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+
+						{/* ── Content Tab ── */}
+						{tab === "content" && (
+							<div className="space-y-4">
+								<div className="bg-card border border-border rounded-xl overflow-hidden p-4 space-y-3">
+									<div className="flex items-center gap-2">
+										<span className="text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-0.5 rounded-md border border-border capitalize">
+											{campaign.campaignType || "email"}
+										</span>
+									</div>
+
+									<div>
+										<label className="text-[10px] text-muted-foreground font-semibold block mb-1">Subject</label>
+										<p className="text-[12px] font-semibold text-foreground bg-secondary/40 rounded-lg px-3 py-2 border border-border/50">
+											{campaign.subject || "No subject provided"}
+										</p>
+									</div>
+
+									<div>
+										<label className="text-[10px] text-muted-foreground font-semibold block mb-1">Message Body</label>
+										<p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line bg-secondary/40 rounded-lg px-3 py-2.5 border border-border/50">
+											{campaign.message || "No message body provided"}
+										</p>
+									</div>
+
+									{campaign.image && (
+										<div>
+											<label className="text-[10px] text-muted-foreground font-semibold block mb-1">Image Banner</label>
+											<img src={campaign.image} alt="Campaign Banner" className="w-full object-cover rounded-lg border border-border max-h-48" />
+										</div>
+									)}
+								</div>
+
+								{/* Recipients list */}
+								<div className="bg-card border border-border rounded-xl p-4 space-y-2">
+									<p className="text-[11px] font-bold text-foreground">Recipients ({campaign.recipients?.length || 0})</p>
+									<div className="max-h-44 overflow-y-auto space-y-1">
+										{campaign.recipients && campaign.recipients.length > 0 ? (
+											campaign.recipients.map((email, idx) => (
+												<div key={idx} className="text-[11px] font-mono text-muted-foreground bg-secondary/20 px-2.5 py-1 rounded border border-border/30">
+													{email}
+												</div>
+											))
+										) : (
+											<p className="text-[11px] text-muted-foreground">No specific recipient emails listed.</p>
+										)}
+									</div>
+								</div>
+							</div>
+						)}
+
+						{/* ── Delivery Log Tab ── */}
+						{tab === "log" && (
+							<div className="space-y-3">
+								<div className="bg-card border border-border rounded-xl p-4 space-y-2">
+									<div className="flex items-center justify-between">
+										<span className="text-[12px] font-bold text-foreground">Primary Delivery Schedule</span>
+										<StatusBadge status={campaign.status} />
+									</div>
+									<div className="text-[11px] text-muted-foreground space-y-1">
+										<p>• Delivery Strategy: <span className="text-foreground font-semibold">{campaign.deliveryStrategy || "standard"}</span></p>
+										<p>• Scheduled Date: <span className="text-foreground font-semibold">{campaign.deliveryDate ? new Date(campaign.deliveryDate).toLocaleDateString() : "Immediate"}</span></p>
+										<p>• Scheduled Time: <span className="text-foreground font-semibold">{campaign.deliveryTime || "00:00"} {campaign.deliveryTimezone || ""}</span></p>
+										<p>• Frequency: <span className="text-foreground font-semibold">{campaign.deliveryFrequency || "one-time"}</span></p>
+										{campaign.nextDeliveryAt && (
+											<p>• Next Delivery At: <span className="text-primary font-semibold">{new Date(campaign.nextDeliveryAt).toLocaleString()}</span></p>
+										)}
+									</div>
+								</div>
+
+								<div className="bg-card border border-border rounded-xl p-4 space-y-3">
+									<p className="text-[11px] font-bold text-foreground">Delivery Execution Log</p>
+									<div className="grid grid-cols-2 gap-3 text-center">
+										<div className="bg-secondary/40 p-3 rounded-lg border border-border/50">
+											<p className="text-[10px] text-muted-foreground font-semibold">Total Dispatched</p>
+											<p className="text-[16px] font-bold text-foreground">{fmtN(campaign.totalSent || 0)}</p>
+										</div>
+										<div className="bg-secondary/40 p-3 rounded-lg border border-border/50">
+											<p className="text-[10px] text-muted-foreground font-semibold">Delivered</p>
+											<p className="text-[16px] font-bold text-emerald-400">{fmtN(campaign.totalDelivered || 0)}</p>
+										</div>
+										<div className="bg-secondary/40 p-3 rounded-lg border border-border/50">
+											<p className="text-[10px] text-muted-foreground font-semibold">Opened</p>
+											<p className="text-[16px] font-bold text-sky-400">{fmtN(campaign.totalOpened || 0)}</p>
+										</div>
+										<div className="bg-secondary/40 p-3 rounded-lg border border-border/50">
+											<p className="text-[10px] text-muted-foreground font-semibold">Failed</p>
+											<p className="text-[16px] font-bold text-red-400">{fmtN(campaign.totalFailed || 0)}</p>
+										</div>
+									</div>
+								</div>
+							</div>
+						)}
+					</div>
+				)}
+			</SheetContent>
+		</Sheet>
+	);
+}
+
+function EditCampaignDialog({
+	campaign,
+	onClose,
+	onSave,
+	isSaving,
+}: {
+	campaign: CampaignItem | null;
+	onClose: () => void;
+	onSave: (data: Partial<CampaignItem>) => void;
+	isSaving: boolean;
+}) {
+	const [name, setName] = useState(campaign?.campaignName || "");
+	const [subject, setSubject] = useState(campaign?.subject || "");
+	const [message, setMessage] = useState(campaign?.message || "");
+	const [depositType, setDepositType] = useState(campaign?.depositType || "first Deposit");
+	const [reward, setReward] = useState(campaign?.conversionReward || "0");
+	const [status, setStatus] = useState(campaign?.status || "active");
+
+	React.useEffect(() => {
+		if (campaign) {
+			setName(campaign.campaignName || "");
+			setSubject(campaign.subject || "");
+			setMessage(campaign.message || "");
+			setDepositType(campaign.depositType || "first Deposit");
+			setReward(campaign.conversionReward || "0");
+			setStatus(campaign.status || "active");
+		}
+	}, [campaign]);
+
+	if (!campaign) return null;
+
+	return (
+		<Dialog open={!!campaign} onOpenChange={(open) => { if (!open) onClose(); }}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Edit Campaign</DialogTitle>
+				</DialogHeader>
+
+				<div className="space-y-4 py-2">
+					<div>
+						<label className="text-[11px] font-semibold text-muted-foreground block mb-1">Campaign Name</label>
+						<input
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+							className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+						/>
+					</div>
+
+					<div>
+						<label className="text-[11px] font-semibold text-muted-foreground block mb-1">Subject</label>
+						<input
+							value={subject}
+							onChange={(e) => setSubject(e.target.value)}
+							className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+						/>
+					</div>
+
+					<div>
+						<label className="text-[11px] font-semibold text-muted-foreground block mb-1">Message Body</label>
+						<textarea
+							value={message}
+							onChange={(e) => setMessage(e.target.value)}
+							className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-[12px] text-foreground h-20 resize-none focus:outline-none focus:border-primary/50"
+						/>
+					</div>
+
+					<div className="grid grid-cols-2 gap-3">
+						<div>
+							<label className="text-[11px] font-semibold text-muted-foreground block mb-1">Deposit Type</label>
+							<input
+								value={depositType}
+								onChange={(e) => setDepositType(e.target.value)}
+								className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+							/>
+						</div>
+						<div>
+							<label className="text-[11px] font-semibold text-muted-foreground block mb-1">Conversion Reward</label>
+							<input
+								value={reward}
+								onChange={(e) => setReward(e.target.value)}
+								className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+							/>
+						</div>
+					</div>
+
+					<div>
+						<label className="text-[11px] font-semibold text-muted-foreground block mb-1">Status</label>
+						<select
+							value={status}
+							onChange={(e) => setStatus(e.target.value)}
+							className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+						>
+							<option value="active">Active</option>
+							<option value="paused">Paused</option>
+							<option value="completed">Completed</option>
+						</select>
+					</div>
+				</div>
+
+				<DialogFooter>
+					<Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+						Cancel
+					</Button>
+					<Button
+						type="button"
+						onClick={() => onSave({ campaignName: name, subject, message, depositType, conversionReward: reward, status })}
+						disabled={isSaving}
+					>
+						{isSaving ? <LoadingSpinner size="sm" /> : "Save Changes"}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
 
 const Campaigns = () => {
-	const [campaigns, setCampaigns] = useState(INITIAL_CAMPAIGNS);
 	const [view, setView] = useState<"list" | "new">("list");
 	const [step, setStep] = useState(1);
 	const [campaignName, setCampaignName] = useState("");
@@ -304,14 +714,19 @@ const Campaigns = () => {
 	const [campaignPg, setCampaignPg] = useState(1);
 	const campaignPerPage = 5;
 
+	// View Details & Edit state
+	const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+	const [editingCampaign, setEditingCampaign] = useState<CampaignItem | null>(null);
+
 	// Custom Message Contents
 	const [emailSubject, setEmailSubject] = useState("Make your first deposit and get up to ₦5,000 instantly");
-	const [emailBody, setEmailBody] = useState("Hi {{first_name}}, welcome to Ravasend! Deposit within 7 days to unlock your ₦5,000 reward.");
+	const [emailBody, setEmailBody] = useState("Hi, welcome to Ravasend! Deposit within 7 days to unlock your ₦5,000 reward.");
 	const [pushTitle, setPushTitle] = useState("💸 Your ₦5,000 reward is waiting!");
 	const [pushBody, setPushBody] = useState("Make your first deposit within 7 days to claim it");
 	const [popupHeadline, setPopupHeadline] = useState("Your ₦5,000 reward is waiting!");
 	const [popupBody, setPopupBody] = useState("Deposit within 7 days to unlock your instant cash reward. No minimum amount required.");
 	const [popupCta, setPopupCta] = useState("Deposit Now");
+	const [bannerImage, setBannerImage] = useState("");
 
 	// Conversion Goal
 	const [conversionGoal, setConversionGoal] = useState("deposit");
@@ -332,7 +747,7 @@ const Campaigns = () => {
 	const [inviteeConditions, setInviteeConditions] = useState<{ type: string; value: string }[]>([]);
 	const [inviteeLogic, setInviteeLogic] = useState<"AND" | "OR">("AND");
 	// Timing / Strategy
-	const [campaignType, setCampaignType] = useState<"drip" | "event" | "broadcast">("drip");
+	const [campaignType, setCampaignType] = useState<"drip-timebase" | "event-trigger" | "one-time broadcast">("drip-timebase");
 	// Drip Steps
 	const [dripSteps, setDripSteps] = useState([
 		{ delay: "Day 1", message: "Welcome — claim your reward", enabled: true },
@@ -356,16 +771,101 @@ const Campaigns = () => {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
-	// ─── Real Users Query & Segment Filtering ─────────────────────────────────
-
-	const { data: usersData, isLoading: isUsersLoading } = useQuery({
+	const { data: usersData } = useQuery({
 		queryKey: ["users"],
 		queryFn: usersAPI.getAll,
 	});
 
+	const { data: campaignsData, isLoading: isCampaignsLoading } = useQuery({
+		queryKey: ["campaigns"],
+		queryFn: campaignAPI.getAllCampaigns,
+	});
+
+	const { data: totalCampaignsData, isLoading: isTotalCampaignsLoading } = useQuery({
+		queryKey: ["totalCampaigns"],
+		queryFn: campaignAPI.getTotalCampaigns,
+	});
+
+	const { data: totalActiveCampaignsData, isLoading: isTotalActiveCampaignsLoading } = useQuery({
+		queryKey: ["totalActiveCampaigns"],
+		queryFn: campaignAPI.getTotalActiveCampaigns,
+	});
+
+	const { data: totalCampaignSentData, isLoading: isTotalCampaignSentLoading } = useQuery({
+		queryKey: ["totalCampaignSent"],
+		queryFn: campaignAPI.getTotalCampaignSent,
+	});
+
 	const users: User[] = useMemo(() => usersData?.users || [], [usersData]);
 
-	// Compute segments based on user data
+	const liveCampaigns: CampaignItem[] = useMemo(() => campaignsData?.data || [], [campaignsData]);
+
+	const createCampaignMutation = useMutation({
+		mutationFn: campaignAPI.createCampaign,
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaignSent"] });
+			toast({
+				title: "Campaign Created!",
+				description: "Campaign was created successfully.",
+			});
+			setView("list");
+			setStep(1);
+		},
+		onError: (err: any) => {
+			toast({
+				variant: "destructive",
+				title: "Creation Failed",
+				description: err?.response?.data?.message || err.message || "Failed to create campaign",
+			});
+		},
+	});
+
+	const updateCampaignMutation = useMutation({
+		mutationFn: ({ id, data }: { id: string; data: any }) => campaignAPI.updateCampaign(id, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["campaign-detail"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
+			toast({
+				title: "Campaign Updated",
+				description: "Changes were saved successfully.",
+			});
+			setEditingCampaign(null);
+		},
+		onError: (err: any) => {
+			toast({
+				variant: "destructive",
+				title: "Update Failed",
+				description: err?.response?.data?.message || err.message || "Failed to update campaign",
+			});
+		},
+	});
+
+	const deleteCampaignMutation = useMutation({
+		mutationFn: campaignAPI.deleteCampaign,
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaignSent"] });
+			toast({
+				title: "Campaign Deleted",
+				description: "The campaign was removed.",
+			});
+		},
+		onError: (err: any) => {
+			toast({
+				variant: "destructive",
+				title: "Delete Failed",
+				description: err?.response?.data?.message || err.message || "Failed to delete campaign",
+			});
+		},
+	});
+
 	const segments = useMemo(() => {
 		const isNoFirstDeposit = (u: User) => String(u.isFirstDeposit) === "false" || !u.isFirstDeposit;
 		const isFirstDepositDone = (u: User) => String(u.isFirstDeposit) === "true";
@@ -435,124 +935,58 @@ const Campaigns = () => {
 	// Selected target users
 	const currentSegment = segments.find((s) => s.id === selectedSeg) || segments[0];
 
-	// ─── Mutations for Bulk Email & Push Notifications ────────────────────────
-
-	const sendBulkEmailMutation = useMutation({
-		mutationFn: campaignAPI.sendBulkEmail,
-	});
-
-	const sendBulkPushMutation = useMutation({
-		mutationFn: campaignAPI.sendBulkPushNotification,
-	});
-
-	const [isSubmitting, setIsSubmitting] = useState(false);
-
 	const toggleScopeItem = (item: string) =>
 		setGoalScopeItems((s) => (s.includes(item) ? s.filter((x) => x !== item) : [...s, item]));
 	const toggleCh = (ch: string) =>
 		setChannels((p) => (p.includes(ch) ? p.filter((c) => c !== ch) : [...p, ch]));
 	const stepsList = ["Segment", "Message & Goal", "Timing", "Review"];
 
-	const toggleStatus = (id: string) =>
-		setCampaigns((c) =>
-			c.map((x) => (x.id === id ? { ...x, status: x.status === "active" ? "paused" : "active" } : x))
-		);
-	const deleteCampaign = (id: string) => setCampaigns((c) => c.filter((x) => x.id !== id));
-
-	// ─── Activate Campaign Handler ────────────────────────────────────────────
-
 	const handleActivateCampaign = async () => {
-		setIsSubmitting(true);
 		const targetUsers = currentSegment.users;
 		const finalName = campaignName.trim() || `Campaign for ${currentSegment.name}`;
 
-		let emailSuccessCount = 0;
-		let pushSuccessCount = 0;
-		const errors: string[] = [];
+		const recipients = targetUsers.map((u) => u.email).filter(Boolean);
 
-		// 1. Bulk Email Execution
-		if (channels.includes("email")) {
-			const emailRecipients = targetUsers.map((u) => u.email).filter(Boolean);
-			if (emailRecipients.length > 0) {
-				try {
-					await sendBulkEmailMutation.mutateAsync({
-						subject: emailSubject || finalName,
-						message: emailBody,
-						recipients: emailRecipients,
-					});
-					emailSuccessCount = emailRecipients.length;
-				} catch (err: any) {
-					errors.push(`Email error: ${err?.response?.data?.message || err.message || "Failed to send emails"}`);
-				}
-			} else {
-				errors.push("No valid email addresses found in the selected segment");
-			}
-		}
-
-		// 2. Bulk Push Notification Execution
-		if (channels.includes("push")) {
-			const fcmTokens = targetUsers.map((u) => (u as any).fcmToken).filter((t): t is string => Boolean(t));
-			if (fcmTokens.length > 0) {
-				try {
-					await sendBulkPushMutation.mutateAsync({
-						subject: pushTitle || finalName,
-						message: pushBody,
-						recipients: fcmTokens,
-					});
-					pushSuccessCount = fcmTokens.length;
-				} catch (err: any) {
-					errors.push(`Push error: ${err?.response?.data?.message || err.message || "Failed to send push notifications"}`);
-				}
-			} else {
-				errors.push("No valid FCM push tokens found for users in the selected segment");
-			}
-		}
-
-		setIsSubmitting(false);
-
-		if (errors.length > 0 && emailSuccessCount === 0 && pushSuccessCount === 0) {
-			toast({
-				variant: "destructive",
-				title: "Campaign Dispatch Failed",
-				description: errors.join(" • "),
-			});
-			return;
-		}
-
-		const goalLabel = GOAL_OPTIONS.find((g) => g.id === conversionGoal)?.label ?? conversionGoal;
-		const rewardLabel =
+		const rewardVal =
 			rewardType === "cash"
-				? `${rewardCurrency} ${rewardAmount}`
+				? rewardAmount
 				: rewardType === "promo_code"
-					? `Promo: ${rewardPromoCode}`
-					: "None";
+					? rewardPromoCode
+					: "0";
 
-		const newCamp = {
-			id: `c_${Date.now()}`,
-			name: finalName,
-			segment: currentSegment.name,
-			channels: [...channels],
+		const payload = {
+			campaignName: finalName,
+			subject: channels.includes("email") ? emailSubject : pushTitle || finalName,
+			message: channels.includes("email") ? emailBody : pushBody || "Campaign message",
+			recipients: recipients.length > 0 ? recipients : ["user@ravasend.com"],
+			campaignType: channels.includes("email") ? "email" : "in-app",
+			image: bannerImage || "",
+			depositType: depositSubtype || depositType || "first Deposit",
+			conversionReward: rewardVal || "200",
+			deliveryStrategy: campaignType,
+			deliveryTime: broadcastTime || "01:00",
+			deliveryDate: broadcastDate ? new Date(broadcastDate).toISOString() : new Date().toISOString(),
+			deliveryTimezone: "Africa/Lagos",
+			deliveryFrequency: campaignType === "event-trigger" ? eventDelay : "weekly",
+			deliveryFrequencyValue: 2,
+			deliveryFrequencyUnit: "hours",
+			deliveryFrequencyTimezone: "Africa/Lagos",
 			status: "active",
-			sent: emailSuccessCount + pushSuccessCount || targetUsers.length,
-			opened: 0,
-			converted: 0,
-			steps: campaignType === "drip" ? dripSteps.filter((d) => d.enabled).length : 1,
-			date: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit" }),
-			goal: goalLabel,
-			reward: rewardLabel,
 		};
 
-		setCampaigns((c) => [newCamp, ...c]);
-		setView("list");
-		setStep(1);
-
-		toast({
-			title: "Campaign Activated!",
-			description: `Successfully sent bulk notifications to ${currentSegment.name} (${emailSuccessCount} emails, ${pushSuccessCount} push tokens).`,
-		});
+		createCampaignMutation.mutate(payload);
 	};
 
-	// ─── Create New Campaign View ─────────────────────────────────────────────
+	const handleToggleStatus = (id: string, currentStatus: string) => {
+		const newStatus = currentStatus === "active" ? "paused" : "active";
+		updateCampaignMutation.mutate({ id, data: { status: newStatus } });
+	};
+
+	const handleDeleteCampaign = (id: string) => {
+		if (window.confirm("Are you sure you want to delete this campaign?")) {
+			deleteCampaignMutation.mutate(id);
+		}
+	};
 
 	if (view === "new") {
 		return (
@@ -705,7 +1139,7 @@ const Campaigns = () => {
 								</div>
 							)}
 
-							{channels.includes("push") && (
+							{channels.includes("in-app") && (
 								<div className="bg-card border border-border rounded-xl p-5">
 									<div className="flex items-center gap-2 mb-3">
 										<Smartphone size={13} className="text-violet-400" />
@@ -753,7 +1187,7 @@ const Campaigns = () => {
 								</div>
 							)}
 
-							{channels.includes("inapp-banner") && <BannerUploadWidget />}
+							{channels.includes("inapp-banner") && <BannerUploadWidget onBannerChange={setBannerImage} />}
 
 							{/* Conversion Goal Selector */}
 							<div className="bg-card border border-border rounded-xl p-5 space-y-4">
@@ -1212,19 +1646,19 @@ const Campaigns = () => {
 								<div className="space-y-2">
 									{[
 										{
-											id: "drip",
+											id: "drip-timebase",
 											icon: "⏱",
 											l: "Drip — Time-based sequence",
 											d: "Send a series of messages at fixed intervals after the user enters. Best for onboarding, first-deposit nudges, long-tail activation.",
 										},
 										{
-											id: "event",
+											id: "event-trigger",
 											icon: "⚡",
 											l: "Event-triggered",
 											d: "Fire a single message when a user does (or fails to do) something. Best for abandon-flow nudges and real-time contextual pushes.",
 										},
 										{
-											id: "broadcast",
+											id: "one-time broadcast",
 											icon: "📣",
 											l: "One-time broadcast",
 											d: "Send once to everyone in the segment at a specific date and time. Best for promotions, new features, and flash campaigns.",
@@ -1233,7 +1667,7 @@ const Campaigns = () => {
 										<button
 											key={t.id}
 											type="button"
-											onClick={() => setCampaignType(t.id as "drip" | "event" | "broadcast")}
+											onClick={() => setCampaignType(t.id as "drip-timebase" | "event-trigger" | "one-time broadcast")}
 											className={`flex items-start gap-3.5 p-4 w-full bg-card border rounded-xl text-left cursor-pointer transition-colors ${campaignType === t.id ? "border-primary/40 bg-primary/5" : "border-border hover:border-white/15"
 												}`}
 										>
@@ -1254,7 +1688,7 @@ const Campaigns = () => {
 							</div>
 
 							{/* Drip Schedule */}
-							{campaignType === "drip" && (
+							{campaignType === "drip-timebase" && (
 								<div className="bg-card border border-border rounded-xl p-5">
 									<div className="flex items-center justify-between mb-4">
 										<div>
@@ -1308,7 +1742,7 @@ const Campaigns = () => {
 							)}
 
 							{/* Event Triggered Config */}
-							{campaignType === "event" && (
+							{campaignType === "event-trigger" && (
 								<div className="bg-card border border-border rounded-xl p-5 space-y-4">
 									<p className="text-[12px] font-bold text-foreground">Trigger Configuration</p>
 									<div>
@@ -1359,7 +1793,7 @@ const Campaigns = () => {
 							)}
 
 							{/* Broadcast Config */}
-							{campaignType === "broadcast" && (
+							{campaignType === "one-time broadcast" && (
 								<div className="bg-card border border-border rounded-xl p-5 space-y-4">
 									<p className="text-[12px] font-bold text-foreground">Broadcast Schedule</p>
 									<div className="grid grid-cols-2 gap-3">
@@ -1416,9 +1850,9 @@ const Campaigns = () => {
 									{
 										l: "Delivery Strategy",
 										v:
-											campaignType === "drip"
+											campaignType === "drip-timebase"
 												? `Drip — ${dripSteps.filter((d) => d.enabled).length} steps`
-												: campaignType === "event"
+												: campaignType === "event-trigger"
 													? `Event: ${eventTrigger.replace(/_/g, " ")} → ${eventDelay}`
 													: `Broadcast: ${broadcastDate || "Now"} ${broadcastTime}`,
 									},
@@ -1438,11 +1872,9 @@ const Campaigns = () => {
 							</div>
 
 							<div className="p-4 bg-primary/5 border border-primary/15 rounded-xl mb-4">
-								<p className="text-[11px] text-muted-foreground font-semibold mb-1">Target Dispatch Count:</p>
+								<p className="text-[11px] text-muted-foreground font-semibold mb-1">Target Recipient Emails:</p>
 								<p className="text-[13px] font-bold text-primary">
-									{channels.includes("email") && `${currentSegment.userCount} emails to send. `}
-									{channels.includes("push") &&
-										`${currentSegment.users.filter((u) => Boolean((u as any).fcmToken)).length} push tokens to send.`}
+									{currentSegment.userCount} user email recipient(s) will receive this campaign.
 								</p>
 							</div>
 
@@ -1450,7 +1882,7 @@ const Campaigns = () => {
 								<button
 									type="button"
 									onClick={() => setStep(3)}
-									disabled={isSubmitting}
+									disabled={createCampaignMutation.isPending}
 									className="px-5 border border-border text-muted-foreground text-[13px] rounded-xl py-3 hover:text-foreground transition-colors bg-secondary/50"
 								>
 									← Back
@@ -1458,17 +1890,17 @@ const Campaigns = () => {
 								<button
 									type="button"
 									onClick={handleActivateCampaign}
-									disabled={isSubmitting}
+									disabled={createCampaignMutation.isPending}
 									className="flex-1 py-3 rounded-xl text-[13px] font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
 									style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
 								>
-									{isSubmitting ? (
+									{createCampaignMutation.isPending ? (
 										<>
-											<LoadingSpinner size="sm" /> Dispatching Campaign...
+											<LoadingSpinner size="sm" /> Creating Campaign...
 										</>
 									) : (
 										<>
-											<Play size={14} /> Activate & Send Campaign
+											<Play size={14} /> Create & Activate Campaign
 										</>
 									)}
 								</button>
@@ -1480,13 +1912,9 @@ const Campaigns = () => {
 		);
 	}
 
-	// ─── Campaigns Table / List View ─────────────────────────────────────────
+	// ─── Campaigns Table / List View ───────────────────────────────────────── this one herw is important
 
-	const totalSent = campaigns.reduce((a, c) => a + c.sent, 0);
-	const totalConverted = campaigns.reduce((a, c) => a + c.converted, 0);
-	const totalActive = campaigns.filter((c) => c.status === "active").length;
-
-	const paginatedCampaigns = campaigns.slice((campaignPg - 1) * campaignPerPage, campaignPg * campaignPerPage);
+	const paginatedCampaigns = liveCampaigns.slice((campaignPg - 1) * campaignPerPage, campaignPg * campaignPerPage);
 
 	return (
 		<div className="flex flex-col space-y-6 min-h-full flex-1" onClick={() => setOpenMenu(null)}>
@@ -1507,12 +1935,23 @@ const Campaigns = () => {
 				</Button>
 			</div>
 
-			{/* Metrics Row */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-				<StatCard label="Total Campaigns" value={String(campaigns.length)} />
-				<StatCard label="Active Campaigns" value={String(totalActive)} />
-				<StatCard label="Total Sent" value={fmtN(totalSent)} />
-				<StatCard label="Total Conversions" value={fmtN(totalConverted)} />
+			{/* Metrics Row: Total Campaigns, Active Campaigns, Total Sent (Conversions removed as requested) */}
+			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+				<StatCard
+					label="Total Campaigns"
+					value={fmtN(typeof totalCampaignsData?.data === "number" ? totalCampaignsData.data : liveCampaigns.length)}
+					isLoading={isTotalCampaignsLoading}
+				/>
+				<StatCard
+					label="Active Campaigns"
+					value={fmtN(typeof totalActiveCampaignsData?.data === "number" ? totalActiveCampaignsData.data : liveCampaigns.filter((c) => c.status === "active").length)}
+					isLoading={isTotalActiveCampaignsLoading}
+				/>
+				<StatCard
+					label="Total Campaign Sent"
+					value={fmtN(typeof totalCampaignSentData?.data === "number" ? totalCampaignSentData.data : 0)}
+					isLoading={isTotalCampaignSentLoading}
+				/>
 			</div>
 
 			{/* Campaigns Table Card */}
@@ -1523,79 +1962,112 @@ const Campaigns = () => {
 							<thead className="bg-muted/30 text-muted-foreground text-[11px] font-semibold border-b border-border/50 uppercase tracking-wider">
 								<tr>
 									<th className="px-5 py-3">Campaign</th>
-									<th className="px-5 py-3">Conversion Goal</th>
+									<th className="px-5 py-3">Deposit Type</th>
 									<th className="px-5 py-3">Reward</th>
 									<th className="px-5 py-3">Channels</th>
 									<th className="px-5 py-3">Sent</th>
 									<th className="px-5 py-3">Open Rate</th>
-									<th className="px-5 py-3">Converted</th>
 									<th className="px-5 py-3">Status</th>
 									<th className="px-5 py-3 text-right">Actions</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/50">
-								{paginatedCampaigns.length === 0 ? (
+								{isCampaignsLoading ? (
 									<tr>
-										<td colSpan={9} className="text-center py-8 text-muted-foreground">
+										<td colSpan={8} className="text-center py-12">
+											<div className="flex items-center justify-center gap-2 text-muted-foreground">
+												<LoadingSpinner size="sm" />
+											</div>
+										</td>
+									</tr>
+								) : paginatedCampaigns.length === 0 ? (
+									<tr>
+										<td colSpan={8} className="text-center py-8 text-muted-foreground">
 											No campaigns found. Click "New Campaign" to create one.
 										</td>
 									</tr>
 								) : (
 									paginatedCampaigns.map((c) => (
-										<tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
+										<tr
+											key={c._id}
+											className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+											onClick={() => setSelectedCampaignId(c._id)}
+										>
 											<td className="px-5 py-3.5">
-												<p className="text-[13px] font-semibold text-foreground">{c.name}</p>
+												<p className="text-[13px] font-semibold text-foreground">{c.campaignName}</p>
 												<p className="text-[10px] text-muted-foreground">
-													{c.segment} · {c.steps} steps · {c.date}
+													{c.recipients?.length || c.totalRecipients || 0} recipients · {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}
 												</p>
 											</td>
 											<td className="px-5 py-3.5 max-w-[160px]">
 												<div className="flex items-start gap-1.5">
 													<Target size={11} className="text-primary mt-0.5 shrink-0" />
-													<span className="text-[11px] font-semibold text-foreground leading-snug">{c.goal ?? "—"}</span>
+													<span className="text-[11px] font-semibold text-foreground leading-snug">
+														{c.depositType || c.deliveryStrategy || "—"}
+													</span>
 												</div>
 											</td>
 											<td className="px-5 py-3.5">
-												<span className="text-[11px] font-semibold text-emerald-400">{c.reward ?? "—"}</span>
+												<span className="text-[11px] font-semibold text-emerald-400">
+													{c.conversionReward || "—"}
+												</span>
 											</td>
 											<td className="px-5 py-3.5">
 												<div className="flex gap-1 flex-wrap">
-													{c.channels.map((ch) => (
+													{(c.campaignType || "email").split(",").map((ch) => (
 														<ChannelBadge key={ch} ch={ch} />
 													))}
 												</div>
 											</td>
-											<td className="px-5 py-3.5 text-[12px] font-mono text-foreground">{fmtN(c.sent)}</td>
 											<td className="px-5 py-3.5 text-[12px] font-mono text-foreground">
-												{c.sent > 0 ? Math.round((c.opened / c.sent) * 100) : 0}%
+												{fmtN(c.totalSent ?? c.recipients?.length ?? 0)}
 											</td>
-											<td className="px-5 py-3.5">
-												<p className="text-[13px] font-mono font-bold text-primary">{fmtN(c.converted)}</p>
-												{c.sent > 0 && <p className="text-[9px] text-muted-foreground">{Math.round((c.converted / c.sent) * 100)}% cvr</p>}
+											<td className="px-5 py-3.5 text-[12px] font-mono text-foreground">
+												{c.totalSent ? Math.round(((c.totalOpened || 0) / c.totalSent) * 100) : 0}%
 											</td>
 											<td className="px-5 py-3.5">
 												<StatusBadge status={c.status} />
 											</td>
-											<td className="px-5 py-3.5 text-right relative">
+											<td className="px-5 py-3.5 text-right relative" onClick={(e) => e.stopPropagation()}>
 												<button
 													type="button"
 													onClick={(e) => {
 														e.stopPropagation();
-														setOpenMenu(openMenu === c.id ? null : c.id);
+														setOpenMenu(openMenu === c._id ? null : c._id);
 													}}
 													className="text-muted-foreground hover:text-foreground transition-colors p-1"
 												>
 													<MoreHorizontal size={14} />
 												</button>
-												{openMenu === c.id && (
+												{openMenu === c._id && (
 													<div
 														onClick={(e) => e.stopPropagation()}
-														className="absolute right-5 top-10 w-36 bg-card border border-border rounded-xl shadow-xl p-1 z-50 text-left"
+														className="absolute right-5 top-10 w-40 bg-card border border-border rounded-xl shadow-xl p-1 z-50 text-left"
 													>
 														<button
 															type="button"
 															onClick={() => {
-																toggleStatus(c.id);
+																setSelectedCampaignId(c._id);
+																setOpenMenu(null);
+															}}
+															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
+														>
+															<Eye size={13} /> View Details
+														</button>
+														<button
+															type="button"
+															onClick={() => {
+																setEditingCampaign(c);
+																setOpenMenu(null);
+															}}
+															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
+														>
+															<Edit size={13} /> Edit
+														</button>
+														<button
+															type="button"
+															onClick={() => {
+																handleToggleStatus(c._id, c.status);
 																setOpenMenu(null);
 															}}
 															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
@@ -1613,7 +2085,7 @@ const Campaigns = () => {
 														<button
 															type="button"
 															onClick={() => {
-																deleteCampaign(c.id);
+																handleDeleteCampaign(c._id);
 																setOpenMenu(null);
 															}}
 															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-red-500/10 text-red-400"
@@ -1631,11 +2103,11 @@ const Campaigns = () => {
 					</div>
 
 					{/* Table Pagination */}
-					{campaigns.length > 0 && (
+					{liveCampaigns.length > 0 && (
 						<div className="flex items-center justify-between pt-2 border-t border-border/50 shrink-0">
 							<span className="text-[12px] text-muted-foreground">
-								Showing {Math.min((campaignPg - 1) * campaignPerPage + 1, campaigns.length)} -{" "}
-								{Math.min(campaignPg * campaignPerPage, campaigns.length)} of {campaigns.length} campaigns
+								Showing {Math.min((campaignPg - 1) * campaignPerPage + 1, liveCampaigns.length)} -{" "}
+								{Math.min(campaignPg * campaignPerPage, liveCampaigns.length)} of {liveCampaigns.length} campaigns
 							</span>
 							<div className="flex items-center gap-2">
 								<button
@@ -1647,12 +2119,12 @@ const Campaigns = () => {
 									<ChevronLeft size={14} />
 								</button>
 								<span className="text-[12px] font-medium text-foreground">
-									Page {campaignPg} of {Math.ceil(campaigns.length / campaignPerPage) || 1}
+									Page {campaignPg} of {Math.ceil(liveCampaigns.length / campaignPerPage) || 1}
 								</span>
 								<button
 									type="button"
-									disabled={campaignPg >= Math.ceil(campaigns.length / campaignPerPage)}
-									onClick={() => setCampaignPg((p) => Math.min(Math.ceil(campaigns.length / campaignPerPage), p + 1))}
+									disabled={campaignPg >= Math.ceil(liveCampaigns.length / campaignPerPage)}
+									onClick={() => setCampaignPg((p) => Math.min(Math.ceil(liveCampaigns.length / campaignPerPage), p + 1))}
 									className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
 								>
 									<ChevronRight size={14} />
@@ -1662,6 +2134,25 @@ const Campaigns = () => {
 					)}
 				</CardContent>
 			</Card>
+
+			{/* Slide Sheet for View Details */}
+			<CampaignDetailSheet
+				campaignId={selectedCampaignId}
+				onClose={() => setSelectedCampaignId(null)}
+				onUpdateStatus={(id, currentStatus) => handleToggleStatus(id, currentStatus)}
+			/>
+
+			{/* Modal Dialog for Edit Campaign */}
+			<EditCampaignDialog
+				campaign={editingCampaign}
+				onClose={() => setEditingCampaign(null)}
+				onSave={(data) => {
+					if (editingCampaign) {
+						updateCampaignMutation.mutate({ id: editingCampaign._id, data });
+					}
+				}}
+				isSaving={updateCampaignMutation.isPending}
+			/>
 		</div>
 	);
 };

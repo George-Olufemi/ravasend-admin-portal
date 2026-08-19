@@ -53,7 +53,7 @@ export interface User {
   lastLogin: string;
   isFirstDeposit: boolean;
   isFirstConversion: boolean;
-
+  ngn?: number;
 }
 
 export interface LoginResponse {
@@ -264,6 +264,8 @@ export interface UserLedgerEntry {
   balanceAfter: number;
   createdAt: string;
   updatedAt: string;
+  currency?: string;
+  cryptoAmount?: number;
   __v: number;
 }
 
@@ -272,8 +274,17 @@ export interface UserLedgerResponse {
   data: UserLedgerEntry[];
 }
 
+export interface AuditUser {
+  _id: string;
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  role?: string;
+}
+
 export interface AuditRecord {
   _id: string;
+  userId?: AuditUser | string;
   featureName: string;
   email: string;
   ipAddress: string;
@@ -551,9 +562,87 @@ export const adminAndRolesAPI = {
   },
 };
 
+export interface CampaignItem {
+  _id: string;
+  campaignName: string;
+  subject: string;
+  message: string;
+  recipients: string[];
+  campaignType: string;
+  image?: string;
+  depositType?: string;
+  conversionReward?: string;
+  deliveryStrategy?: string;
+  deliveryTime?: string;
+  deliveryDate?: string;
+  deliveryTimezone?: string;
+  deliveryFrequency?: string;
+  deliveryFrequencyValue?: number;
+  deliveryFrequencyUnit?: string;
+  deliveryFrequencyTimezone?: string;
+  status: string;
+  totalRecipients?: number;
+  totalSent?: number;
+  totalDelivered?: number;
+  totalFailed?: number;
+  totalOpened?: number;
+  totalClicked?: number;
+  nextDeliveryAt?: string;
+  isDeleted?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  __v?: number;
+}
+
+export interface CampaignsResponse {
+  success: boolean;
+  message: string;
+  data: CampaignItem[];
+}
+
+export interface SingleCampaignResponse {
+  success: boolean;
+  message: string;
+  data: CampaignItem;
+}
+
+export interface CampaignCountResponse {
+  success: boolean;
+  message: string;
+  data: number;
+}
+
 export const campaignAPI = {
-  getAll: async () => {
-    const response = await api.get("/api/v1/admin/getAllCampaigns");
+  getAllCampaigns: async (): Promise<CampaignsResponse> => {
+    const response = await api.get("/api/v1/campaign/getCampaigns");
+    return response.data;
+  },
+  getTotalCampaigns: async (): Promise<CampaignCountResponse> => {
+    const response = await api.get("/api/v1/campaign/getTotalCampaigns");
+    return response.data;
+  },
+  getTotalActiveCampaigns: async (): Promise<CampaignCountResponse> => {
+    const response = await api.get("/api/v1/campaign/getTotalActiveCampaigns");
+    return response.data;
+  },
+  getTotalCampaignSent: async (): Promise<CampaignCountResponse> => {
+    const response = await api.get("/api/v1/campaign/getTotalCampaignSent");
+    return response.data;
+  },
+  createCampaign: async (data: any): Promise<SingleCampaignResponse> => {
+    const response = await api.post("/api/v1/campaign/createCampaign", data);
+    return response.data;
+  },
+  getCampaignById: async (id: string): Promise<SingleCampaignResponse> => {
+    const response = await api.get(`/api/v1/campaign/getCampaignById/${id}`);
+    return response.data;
+  },
+  updateCampaign: async (id: string, data: any): Promise<SingleCampaignResponse> => {
+    const response = await api.put(`/api/v1/campaign/updateCampaign/${id}`, data);
+    return response.data;
+  },
+  deleteCampaign: async (id: string): Promise<any> => {
+    const response = await api.delete(`/api/v1/campaign/deleteCampaign/${id}`);
     return response.data;
   },
   sendBulkEmail: async (data): Promise<any> => {
@@ -562,6 +651,33 @@ export const campaignAPI = {
   },
   sendBulkPushNotification: async (data): Promise<any> => {
     const response = await api.post("/api/v1/admin/send-bulk-in-app", data);
+    return response.data;
+  },
+  getNewUsersNoFirstDeposit: async () => {
+    const response = await api.get("/api/v1/campaign/getNewUsersNoFirstDeposit");
+    return response.data;
+  },
+  getUserDepositedNeverTransacted: async () => {
+    const response = await api.get("/api/v1/campaign/getUserDepositedNeverTransacted");
+    return response.data;
+  },
+  getUserTransactWithZeroReferrals: async () => {
+    const response = await api.get("api/v1/campaign/getUserTransactWithZeroReferrals");
+    return response.data;
+  },
+  getLapsedUsersNoDepositGreaterThan7days: async () => {
+    const response = await api.get("/api/v1/campaign/getLapsedUsersNoDepositGreaterThan7days");
+    return response.data;
+  },
+  getChurnedActiveUsersWalletGreaterThan0InactiveGreaterThan14days: async () => {
+    const response = await api.get("/api/v1/campaign/getChurnedActiveUsersWalletGreaterThan0InactiveGreaterThan14days");
+    return response.data;
+  },
+}
+
+export const segmentAPI = {
+  createSegment: async (data: any): Promise<SingleCampaignResponse> => {
+    const response = await api.post("/api/v1/segment/createSegment", data);
     return response.data;
   },
 }

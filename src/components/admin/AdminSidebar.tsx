@@ -75,7 +75,7 @@ const NAV: NavGroup[] = [
     label: "Engagement",
     items: [
       // { id: "competitions", label: "Competitions", icon: Trophy, url: "/admin/competitions" },
-      // { id: "segments", label: "Segments", icon: Target, url: "/admin/segments" },
+      { id: "segments", label: "Segments", icon: Target, url: "/admin/segments" },
       { id: "campaigns", label: "Campaigns", icon: Megaphone, url: "/admin/campaign" },
     ],
   },
@@ -101,7 +101,7 @@ function ImageWithFallback({ src, alt, className }: { src: string; alt: string; 
 }
 
 export function AdminSidebar({ withdrawalPaused, isMobileOpen, onCloseMobile }: AdminSidebarProps) {
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ referral: true });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ referral: false });
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
