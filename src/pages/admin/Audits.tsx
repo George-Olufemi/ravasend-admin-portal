@@ -77,7 +77,8 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub: st
 
 const Audits = () => {
 	const [search, setSearch] = useState("");
-	const [locationFilter, setLocationFilter] = useState("All");
+	const [filterType, setFilterType] = useState("All");
+	const [filterSev, setFilterSev] = useState("All");
 	const [pg, setPg] = useState(1);
 	const perPage = 10;
 
@@ -90,55 +91,87 @@ const Audits = () => {
 		queryFn: auditsAPI.getAll,
 	});
 
-	const allAudits: AuditRecord[] = useMemo(() => auditsData?.data || [], [auditsData]);
+	const ALL_AUDITS: AuditRecord[] = useMemo(() => auditsData?.data || [], [auditsData]);
 
-	// Extract locations list
-	const locations = useMemo(() => {
-		const locs = Array.from(new Set(allAudits.map((a) => a.location).filter(Boolean)));
-		return ["All", ...locs];
-	}, [allAudits]);
+	// Extract Categories dynamically
+	const CATEGORIES = useMemo(() => {
+		const cats = Array.from(
+			new Set(ALL_AUDITS.map((a) => a.resourceType || a.featureName).filter(Boolean))
+		);
+		return ["All", ...cats];
+	}, [ALL_AUDITS]);
+
+	const SEVERITIES = ["All", "info", "warning", "critical"];
+
+	const sevConfig: Record<string, { cls: string; label: string }> = {
+		info: { cls: "bg-blue-500/15 text-blue-400 border-blue-500/20", label: "Info" },
+		warning: { cls: "bg-amber-500/15 text-amber-400 border-amber-500/20", label: "Warning" },
+		critical: { cls: "bg-red-500/15 text-red-400 border-red-500/20", label: "Critical" },
+	};
+
+	const catConfig: Record<string, string> = {
+		Login: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+		"User Access Control": "bg-rose-500/10 text-rose-400 border-rose-500/20",
+		"Access Control": "bg-rose-500/10 text-rose-400 border-rose-500/20",
+		Fee: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+		Promo: "bg-pink-500/10 text-pink-400 border-pink-500/20",
+		Users: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+		Transactions: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+		Withdrawals: "bg-red-500/10 text-red-400 border-red-500/20",
+		Campaigns: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+		Competitions: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+	};
+
+	const statusConfig: Record<string, string> = {
+		SUCCESS: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+		FAILED: "bg-red-500/15 text-red-400 border-red-500/20",
+	};
 
 	// Filter audits
 	const filtered = useMemo(() => {
-		return allAudits.filter((a) => {
+		return ALL_AUDITS.filter((a) => {
 			const adminName = typeof a.userId === "object" ? a.userId?.fullName || a.userId?.email || "" : "";
 			const adminEmail = typeof a.userId === "object" ? a.userId?.email || "" : typeof a.userId === "string" ? a.userId : "";
 
 			const matchSearch =
 				!search ||
-				[a.featureName, a.email, a.ipAddress, a.browser, a.device, a.location, adminName, adminEmail].some((s) =>
-					(s || "").toLowerCase().includes(search.toLowerCase())
-				);
+				[a.featureName, a.action, a.email, a.description, a.ipAddress, a.resourceType, adminName, adminEmail]
+					.some((s) => (s || "").toLowerCase().includes(search.toLowerCase()));
 
-			const matchLoc = locationFilter === "All" || a.location === locationFilter;
+			const categoryName = a.resourceType || a.featureName;
+			const matchCat = filterType === "All" || categoryName === filterType;
 
-			return matchSearch && matchLoc;
+			const normWarn = (a.warning || "info").toLowerCase();
+			const sevKey = normWarn.includes("crit") ? "critical" : normWarn.includes("warn") ? "warning" : "info";
+			const matchSev = filterSev === "All" || sevKey === filterSev;
+
+			return matchSearch && matchCat && matchSev;
 		});
-	}, [allAudits, search, locationFilter]);
+	}, [ALL_AUDITS, search, filterType, filterSev]);
 
 	useEffect(() => {
 		setPg(1);
-	}, [search, locationFilter]);
+	}, [search, filterType, filterSev]);
 
 	const totalPages = Math.ceil(filtered.length / perPage) || 1;
 	const paged = useMemo(() => {
 		return filtered.slice((pg - 1) * perPage, pg * perPage);
 	}, [filtered, pg, perPage]);
 
-	// Aggregate metrics
+	// Metrics
+	const criticalCount = useMemo(() => {
+		return ALL_AUDITS.filter((a) => (a.warning || "").toLowerCase().includes("crit")).length;
+	}, [ALL_AUDITS]);
+
+	const warningCount = useMemo(() => {
+		return ALL_AUDITS.filter((a) => (a.warning || "").toLowerCase().includes("warn")).length;
+	}, [ALL_AUDITS]);
+
 	const uniqueAdmins = useMemo(() => {
 		return new Set(
-			allAudits.map((a) => (typeof a.userId === "object" ? a.userId?.email || a.userId?._id : a.userId || a.email))
+			ALL_AUDITS.map((a) => (typeof a.userId === "object" ? a.userId?.email || a.userId?._id : a.userId || a.email))
 		).size;
-	}, [allAudits]);
-
-	const uniqueLocations = useMemo(() => {
-		return new Set(allAudits.map((a) => a.location).filter(Boolean)).size;
-	}, [allAudits]);
-
-	const uniqueTargets = useMemo(() => {
-		return new Set(allAudits.map((a) => a.email).filter(Boolean)).size;
-	}, [allAudits]);
+	}, [ALL_AUDITS]);
 
 	// CSV Export
 	const downloadCSV = () => {
@@ -147,12 +180,16 @@ const Audits = () => {
 		const headers = [
 			"ID",
 			"Feature Name",
+			"Action",
 			"Target Email",
+			"Status",
+			"Description",
 			"Admin Name / Email",
 			"IP Address",
 			"Browser",
 			"Device",
-			"Location",
+			"Resource Type",
+			"Severity",
 			"Created At",
 		];
 
@@ -160,13 +197,17 @@ const Audits = () => {
 			const admin = typeof a.userId === "object" ? a.userId?.fullName || a.userId?.email : a.userId || "";
 			return [
 				a._id,
-				`"${a.featureName}"`,
-				`"${a.email}"`,
+				`"${a.featureName || ""}"`,
+				`"${a.action || ""}"`,
+				`"${a.email || ""}"`,
+				`"${a.status || ""}"`,
+				`"${a.description || ""}"`,
 				`"${admin}"`,
-				a.ipAddress,
-				a.browser,
-				a.device,
-				a.location,
+				a.ipAddress || "",
+				a.browser || "",
+				a.device || "",
+				`"${a.resourceType || ""}"`,
+				`"${a.warning || "info"}"`,
 				a.createdAt,
 			];
 		});
@@ -238,39 +279,81 @@ const Audits = () => {
 				</div>
 			</div>
 
-			{/* Stats Row */}
+			{/* Stats row */}
 			<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-				<StatCard label="Total Events" value={fmtN(allAudits.length)} sub="All time audit entries" />
-				<StatCard label="Admins Active" value={String(uniqueAdmins)} sub="Unique active admins" />
-				<StatCard label="Unique Locations" value={String(uniqueLocations)} sub="Geographic origins" />
-				<StatCard label="Impacted Accounts" value={String(uniqueTargets)} sub="Targeted user accounts" />
+				<StatCard label="Total Events" value={fmtN(ALL_AUDITS.length)} sub="All time audit entries" />
+				<StatCard label="Admins Active" value={String(uniqueAdmins)} sub="Logged this month" />
+				<div className="bg-card border border-amber-500/20 rounded-xl p-4 shadow-card">
+					<p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">Warnings</p>
+					<p className="text-[24px] font-bold text-amber-400 leading-none">{warningCount}</p>
+					<p className="text-[10px] text-amber-400/70 mt-1">Actions needing review</p>
+				</div>
+				<div className="bg-card border border-red-500/20 rounded-xl p-4 shadow-card">
+					<p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">Critical</p>
+					<p className="text-[24px] font-bold text-red-400 leading-none">{criticalCount}</p>
+					<p className="text-[10px] text-red-400/70 mt-1">High-impact actions</p>
+				</div>
 			</div>
 
-			{/* Filters & Actions */}
+			{/* Filters */}
 			<div className="flex items-center gap-3 flex-wrap">
-				{locations.length > 1 && (
-					<div className="flex items-center gap-1 bg-white/[0.03] border border-border rounded-xl p-1 overflow-x-auto">
-						{locations.map((loc) => (
+				{/* {CATEGORIES.length > 1 && (
+					<div className="flex items-center gap-1 bg-white/[0.03] border border-border rounded-xl p-1 overflow-x-auto max-w-full">
+						{CATEGORIES.map((c) => (
 							<button
-								key={loc}
+								key={c}
 								type="button"
-								onClick={() => setLocationFilter(loc)}
-								className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all ${locationFilter === loc ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+								onClick={() => {
+									setFilterType(c);
+									setPg(1);
+								}}
+								className={`px-3 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all ${filterType === c ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
 									}`}
-								style={locationFilter === loc ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}
+								style={filterType === c ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}
 							>
-								{loc === "All" ? "All Locations" : loc}
+								{c}
 							</button>
 						))}
 					</div>
-				)}
+				)} */}
 
-				{(locationFilter !== "All" || search) && (
+				<div className="flex items-center gap-1 bg-white/[0.03] border border-border rounded-xl p-1 overflow-x-auto">
+					{SEVERITIES.map((s) => (
+						<button
+							key={s}
+							type="button"
+							onClick={() => {
+								setFilterSev(s);
+								setPg(1);
+							}}
+							className={`px-3 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all ${filterSev === s ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+								}`}
+							style={
+								filterSev === s
+									? {
+										background:
+											s === "critical"
+												? "linear-gradient(135deg,#ef4444,#b91c1c)"
+												: s === "warning"
+													? "linear-gradient(135deg,#f59e0b,#d97706)"
+													: "linear-gradient(135deg,#7B3FE4,#5B2AB8)",
+									}
+									: {}
+							}
+						>
+							{s === "All" ? "All Severity" : s}
+						</button>
+					))}
+				</div>
+
+				{(filterType !== "All" || filterSev !== "All" || search) && (
 					<button
 						type="button"
 						onClick={() => {
-							setLocationFilter("All");
+							setFilterType("All");
+							setFilterSev("All");
 							setSearch("");
+							setPg(1);
 						}}
 						className="text-[11px] text-muted-foreground hover:text-primary transition-colors px-3 py-1.5 border border-border rounded-xl"
 					>
@@ -281,15 +364,20 @@ const Audits = () => {
 				<span className="ml-auto text-[11px] text-muted-foreground">{filtered.length} events</span>
 			</div>
 
-			{/* Timeline List */}
+			{/* Timeline list */}
 			<div className="space-y-2">
 				{paged.map((a) => {
 					const adminObj = typeof a.userId === "object" ? a.userId : null;
 					const adminDisplay = adminObj?.fullName || adminObj?.email || "Admin User";
 					const avatarText = getInitials(adminDisplay);
-					const detailsString = [a.browser !== "Other" ? a.browser : "", a.device !== "Other" ? a.device : "", a.location ? `Loc: ${a.location}` : ""]
-						.filter(Boolean)
-						.join(" · ") || `${a.browser} · ${a.device}`;
+
+					const normWarn = (a.warning || "info").toLowerCase();
+					const sevKey = normWarn.includes("crit") ? "critical" : normWarn.includes("warn") ? "warning" : "info";
+					const sev = sevConfig[sevKey] || sevConfig.info;
+
+					const catName = a.resourceType || a.featureName;
+					const catCls = catConfig[catName] || "bg-violet-500/10 text-violet-400 border-violet-500/20";
+					const statusCls = statusConfig[a.status || ""] || "bg-zinc-500/15 text-zinc-400 border-zinc-500/20";
 
 					return (
 						<div
@@ -309,7 +397,30 @@ const Audits = () => {
 								<div className="flex-1 min-w-0">
 									<div className="flex items-center gap-2 flex-wrap mb-1">
 										<span className="text-[12px] font-bold text-foreground">{a.featureName}</span>
+
+										{a.action && (
+											<span className="text-[9px] font-extrabold text-muted-foreground bg-secondary px-2 py-0.5 rounded border border-border uppercase tracking-wider">
+												{a.action}
+											</span>
+										)}
+
+										<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${sev.cls}`}>
+											{sev.label}
+										</span>
+
+										{catName && (
+											<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${catCls}`}>
+												{catName}
+											</span>
+										)}
+
+										{a.status && (
+											<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}`}>
+												{a.status}
+											</span>
+										)}
 									</div>
+
 									<div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
 										<span className="font-semibold text-foreground/80">{adminDisplay}</span>
 										{a.email && (
@@ -318,10 +429,10 @@ const Audits = () => {
 												<span className="font-mono text-primary/80">{a.email}</span>
 											</>
 										)}
-										{detailsString && (
+										{a.description && (
 											<>
 												<span>·</span>
-												<span>{detailsString}</span>
+												<span>{a.description}</span>
 											</>
 										)}
 									</div>
@@ -343,7 +454,7 @@ const Audits = () => {
 							<ShieldCheck size={20} className="text-muted-foreground" />
 						</div>
 						<p className="text-[13px] font-semibold text-foreground">No audit entries found</p>
-						<p className="text-[11px] text-muted-foreground mt-1">Try adjusting your search query or filters.</p>
+						<p className="text-[11px] text-muted-foreground mt-1">Try adjusting your filters or search query.</p>
 					</div>
 				)}
 			</div>
@@ -383,4 +494,3 @@ const Audits = () => {
 };
 
 export default Audits;
-

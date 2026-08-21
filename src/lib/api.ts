@@ -286,11 +286,23 @@ export interface AuditRecord {
   _id: string;
   userId?: AuditUser | string;
   featureName: string;
+  action?: string;
   email: string;
+  status?: string;
+  description?: string;
+  endpoint?: string;
+  method?: string;
+  statusCode?: number;
   ipAddress: string;
   browser: string;
   device: string;
+  operatingSystem?: string;
   location: string;
+  resourceType?: string;
+  resourceId?: string;
+  warning?: string;
+  userAgent?: string;
+  metadata?: any[];
   createdAt: string;
   updatedAt: string;
   __v: number;
@@ -680,4 +692,15 @@ export const segmentAPI = {
     const response = await api.post("/api/v1/segment/createSegment", data);
     return response.data;
   },
+}
+
+export const auditAPI = {
+  getAllAudit: async () => {
+    const response = await api.get("/api/v1/auditlogs/audit-logs");
+    return response.data;
+  },
+  getAuditByQuery: async (query: string) => {
+    const response = await api.get("/api/v1/auditlogs/audit-logs?search=" + query);
+    return response.data;
+  }
 }
