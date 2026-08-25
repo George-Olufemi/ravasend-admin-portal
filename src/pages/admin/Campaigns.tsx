@@ -22,9 +22,13 @@ import {
 	Send,
 	Edit,
 	TrendingUp,
+	RotateCcw,
+	Archive,
 } from "lucide-react";
 import {
 	campaignAPI,
+	segmentAPI,
+	SegmentItem,
 	usersAPI,
 	User,
 	CampaignItem,
@@ -705,10 +709,11 @@ function EditCampaignDialog({
 }
 
 const Campaigns = () => {
+	const [listTab, setListTab] = useState<"active" | "deleted">("active");
 	const [view, setView] = useState<"list" | "new">("list");
 	const [step, setStep] = useState(1);
 	const [campaignName, setCampaignName] = useState("");
-	const [selectedSeg, setSelectedSeg] = useState("s1");
+	const [selectedSeg, setSelectedSeg] = useState("");
 	const [channels, setChannels] = useState(["email", "push"]);
 	const [openMenu, setOpenMenu] = useState<string | null>(null);
 	const [campaignPg, setCampaignPg] = useState(1);
@@ -717,6 +722,7 @@ const Campaigns = () => {
 	// View Details & Edit state
 	const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 	const [editingCampaign, setEditingCampaign] = useState<CampaignItem | null>(null);
+	const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
 
 	// Custom Message Contents
 	const [emailSubject, setEmailSubject] = useState("Make your first deposit and get up to ₦5,000 instantly");
@@ -798,10 +804,20 @@ const Campaigns = () => {
 
 	const users: User[] = useMemo(() => usersData?.users || [], [usersData]);
 
-	const liveCampaigns: CampaignItem[] = useMemo(() => campaignsData?.data || [], [campaignsData]);
+	const allRawCampaigns: CampaignItem[] = useMemo(() => campaignsData?.data || [], [campaignsData]);
+
+	const liveCampaigns = useMemo(() => {
+		return allRawCampaigns.filter((c) => !c.isDeleted && (c.status || "").toLowerCase() !== "deleted");
+	}, [allRawCampaigns]);
+
+	const deletedCampaigns = useMemo(() => {
+		return allRawCampaigns.filter((c) => Boolean(c.isDeleted) || (c.status || "").toLowerCase() === "deleted");
+	}, [allRawCampaigns]);
+
+	const displayedCampaigns = listTab === "active" ? liveCampaigns : deletedCampaigns;
 
 	const createCampaignMutation = useMutation({
-		mutationFn: campaignAPI.createCampaign,
+		mutationFn: ({ id, data }: { id: string; data: any }) => campaignAPI.createCampaign(id, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
@@ -856,6 +872,7 @@ const Campaigns = () => {
 				title: "Campaign Deleted",
 				description: "The campaign was removed.",
 			});
+			setDeletingCampaignId(null);
 		},
 		onError: (err: any) => {
 			toast({
@@ -866,74 +883,40 @@ const Campaigns = () => {
 		},
 	});
 
-	const segments = useMemo(() => {
-		const isNoFirstDeposit = (u: User) => String(u.isFirstDeposit) === "false" || !u.isFirstDeposit;
-		const isFirstDepositDone = (u: User) => String(u.isFirstDeposit) === "true";
-		const isFirstConversionDone = (u: User) => String(u.isFirstConversion) === "true";
-		const isNoFirstConversion = (u: User) => String(u.isFirstConversion) === "false" || !u.isFirstConversion;
+	const restoreCampaignMutation = useMutation({
+		mutationFn: (id: string) => campaignAPI.restoreCampaign(id),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaignSent"] });
+			toast({
+				title: "Campaign Restored!",
+				description: "The campaign has been restored successfully.",
+			});
+		},
+		onError: (err: any) => {
+			toast({
+				variant: "destructive",
+				title: "Restore Failed",
+				description: err?.response?.data?.message || err.message || "Failed to restore campaign",
+			});
+		},
+	});
 
-		const s1Users = users.filter(isNoFirstDeposit);
-		const s2Users = users.filter((u) => isFirstDepositDone(u) && isNoFirstConversion(u));
-		const s3Users = users.filter((u) => isFirstConversionDone(u) && (!u.referredBy || u.referredBy === null || u.referredBy === ""));
-		const s4Users = users.filter((u) => {
-			const regDays = (Date.now() - new Date(u.createdAt).getTime()) / (1000 * 3600 * 24);
-			return isNoFirstDeposit(u) && regDays > 7;
-		});
-		const s5Users = users.filter((u) => {
-			const hasBalance = (u.nairaWallet ?? 0) > 0 || (u.dollarWallet ?? 0) > 0;
-			const lastLoginTime = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
-			const inactiveDays = lastLoginTime > 0 ? (Date.now() - lastLoginTime) / (1000 * 3600 * 24) : 999;
-			return hasBalance && inactiveDays > 14;
-		});
+	// Fetch all segments from segmentAPI
+	const { data: segmentsResponse, isLoading: isSegmentsLoading } = useQuery({
+		queryKey: ["segments"],
+		queryFn: segmentAPI.getAllSegments,
+	});
 
-		return [
-			{
-				id: "s1",
-				name: "New Users — No First Deposit",
-				description: "Registered users who have not made their first deposit",
-				users: s1Users,
-				userCount: s1Users.length,
-			},
-			{
-				id: "s2",
-				name: "Deposited, Never Transacted",
-				description: "Users who deposited but have not executed any conversion transaction",
-				users: s2Users,
-				userCount: s2Users.length,
-			},
-			{
-				id: "s3",
-				name: "Transactors — Zero Referrals",
-				description: "Active transacting users who have not referred anyone",
-				users: s3Users,
-				userCount: s3Users.length,
-			},
-			{
-				id: "s4",
-				name: "Lapsed Users — No Deposit (>7 days)",
-				description: "Registered over 7 days ago with zero deposit activity",
-				users: s4Users,
-				userCount: s4Users.length,
-			},
-			{
-				id: "s5",
-				name: "Churned Active Users (Wallet > 0, Inactive >14 days)",
-				description: "Hold positive balance but inactive for over 14 days",
-				users: s5Users,
-				userCount: s5Users.length,
-			},
-			{
-				id: "s6",
-				name: "All Registered Users",
-				description: "Target all verified and registered users on Ravasend",
-				users: users,
-				userCount: users.length,
-			},
-		];
-	}, [users]);
+	const segments: SegmentItem[] = useMemo(() => segmentsResponse?.data || [], [segmentsResponse]);
 
-	// Selected target users
-	const currentSegment = segments.find((s) => s.id === selectedSeg) || segments[0];
+	// Selected target segment
+	const currentSegment = useMemo(() => {
+		if (segments.length === 0) return null;
+		return segments.find((s) => s._id === selectedSeg) || segments[0];
+	}, [segments, selectedSeg]);
 
 	const toggleScopeItem = (item: string) =>
 		setGoalScopeItems((s) => (s.includes(item) ? s.filter((x) => x !== item) : [...s, item]));
@@ -942,10 +925,22 @@ const Campaigns = () => {
 	const stepsList = ["Segment", "Message & Goal", "Timing", "Review"];
 
 	const handleActivateCampaign = async () => {
-		const targetUsers = currentSegment.users;
-		const finalName = campaignName.trim() || `Campaign for ${currentSegment.name}`;
+		const segmentId = currentSegment?._id || selectedSeg;
+		if (!segmentId) {
+			toast({
+				variant: "destructive",
+				title: "Segment Required",
+				description: "Please select a target segment to continue.",
+			});
+			return;
+		}
 
-		const recipients = targetUsers.map((u) => u.email).filter(Boolean);
+		const segmentEmails = currentSegment?.emails || [];
+		const segmentNameText = currentSegment?.segmentName || "Selected Segment";
+		const finalName = campaignName.trim() || `Campaign for ${segmentNameText}`;
+
+		const recipients = segmentEmails.filter(Boolean);
+		const bulkRecipients = recipients.length > 0 ? recipients : ["user@ravasend.com"];
 
 		const rewardVal =
 			rewardType === "cash"
@@ -955,11 +950,13 @@ const Campaigns = () => {
 					: "0";
 
 		const payload = {
+			segmentId,
+			segment: segmentId,
 			campaignName: finalName,
 			subject: channels.includes("email") ? emailSubject : pushTitle || finalName,
 			message: channels.includes("email") ? emailBody : pushBody || "Campaign message",
-			recipients: recipients.length > 0 ? recipients : ["user@ravasend.com"],
-			campaignType: channels.includes("email") ? "email" : "in-app",
+			recipients: bulkRecipients,
+			campaignType: channels.join(", ") || "email",
 			image: bannerImage || "",
 			depositType: depositSubtype || depositType || "first Deposit",
 			conversionReward: rewardVal || "200",
@@ -974,7 +971,34 @@ const Campaigns = () => {
 			status: "active",
 		};
 
-		createCampaignMutation.mutate(payload);
+		// 1. Create campaign record
+		createCampaignMutation.mutate({ id: segmentId, data: payload });
+
+		// 2. Call sendBulkEmail if email channel selected
+		if (channels.includes("email")) {
+			try {
+				await campaignAPI.sendBulkEmail({
+					subject: emailSubject || finalName,
+					message: emailBody || "Campaign message",
+					recipients: bulkRecipients,
+				});
+			} catch (err: any) {
+				console.error("sendBulkEmail error:", err);
+			}
+		}
+
+		// 3. Call sendBulkPushNotification if push channel selected
+		if (channels.includes("push")) {
+			try {
+				await campaignAPI.sendBulkPushNotification({
+					subject: pushTitle || emailSubject || finalName,
+					message: pushBody || emailBody || "Campaign message",
+					recipients: bulkRecipients,
+				});
+			} catch (err: any) {
+				console.error("sendBulkPushNotification error:", err);
+			}
+		}
 	};
 
 	const handleToggleStatus = (id: string, currentStatus: string) => {
@@ -983,9 +1007,7 @@ const Campaigns = () => {
 	};
 
 	const handleDeleteCampaign = (id: string) => {
-		if (window.confirm("Are you sure you want to delete this campaign?")) {
-			deleteCampaignMutation.mutate(id);
-		}
+		setDeletingCampaignId(id);
 	};
 
 	if (view === "new") {
@@ -1047,29 +1069,42 @@ const Campaigns = () => {
 
 							<div>
 								<label className="text-[11px] text-muted-foreground font-semibold block mb-3">Target Segment</label>
-								<div className="space-y-2">
-									{segments.map((s) => (
-										<label
-											key={s.id}
-											className={`flex items-start gap-3.5 p-4 bg-card border rounded-xl cursor-pointer transition-colors ${selectedSeg === s.id ? "border-primary/40 bg-primary/5" : "border-border hover:border-white/15"
-												}`}
-										>
-											<input
-												type="radio"
-												name="seg"
-												checked={selectedSeg === s.id}
-												onChange={() => setSelectedSeg(s.id)}
-												className="accent-violet-500 mt-0.5"
-											/>
-											<div>
-												<p className="text-[13px] font-semibold text-foreground">{s.name}</p>
-												<p className="text-[11px] text-muted-foreground mt-0.5">
-													{fmtN(s.userCount)} users · {s.description}
-												</p>
-											</div>
-										</label>
-									))}
-								</div>
+								{isSegmentsLoading ? (
+									<div className="flex items-center justify-center p-8 bg-card border border-border rounded-xl">
+										<LoadingSpinner size="md" />
+									</div>
+								) : segments.length === 0 ? (
+									<div className="p-4 rounded-xl border border-border bg-card text-center text-[12px] text-muted-foreground">
+										No segments found. Please create a segment first in the Segments tab.
+									</div>
+								) : (
+									<div className="space-y-2">
+										{segments.map((s) => {
+											const isChecked = selectedSeg ? selectedSeg === s._id : segments[0]?._id === s._id;
+											return (
+												<label
+													key={s._id}
+													className={`flex items-start gap-3.5 p-4 bg-card border rounded-xl cursor-pointer transition-colors ${isChecked ? "border-primary/40 bg-primary/5" : "border-border hover:border-white/15"
+														}`}
+												>
+													<input
+														type="radio"
+														name="seg"
+														checked={isChecked}
+														onChange={() => setSelectedSeg(s._id)}
+														className="accent-violet-500 mt-0.5"
+													/>
+													<div>
+														<p className="text-[13px] font-semibold text-foreground">{s.segmentName}</p>
+														<p className="text-[11px] text-muted-foreground mt-0.5">
+															{fmtN(s.totalUserTargeted)} targeted users · {s.description}
+														</p>
+													</div>
+												</label>
+											);
+										})}
+									</div>
+								)}
 							</div>
 
 							<button
@@ -1845,7 +1880,12 @@ const Campaigns = () => {
 						<>
 							<div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden mb-2">
 								{[
-									{ l: "Target Segment", v: `${currentSegment.name} (${fmtN(currentSegment.userCount)} users)` },
+									{
+										l: "Target Segment",
+										v: currentSegment
+											? `${currentSegment.segmentName} (${fmtN(currentSegment.totalUserTargeted)} users targeted)`
+											: "None selected",
+									},
 									{ l: "Delivery Channels", v: channels.join(", ") },
 									{
 										l: "Delivery Strategy",
@@ -1874,7 +1914,7 @@ const Campaigns = () => {
 							<div className="p-4 bg-primary/5 border border-primary/15 rounded-xl mb-4">
 								<p className="text-[11px] text-muted-foreground font-semibold mb-1">Target Recipient Emails:</p>
 								<p className="text-[13px] font-bold text-primary">
-									{currentSegment.userCount} user email recipient(s) will receive this campaign.
+									{fmtN(currentSegment?.totalUserTargeted || currentSegment?.emails?.length || 0)} user email recipient(s) will receive this campaign.
 								</p>
 							</div>
 
@@ -1912,9 +1952,9 @@ const Campaigns = () => {
 		);
 	}
 
-	// ─── Campaigns Table / List View ───────────────────────────────────────── this one herw is important
+	// ─── Campaigns Table / List View ─────────────────────────────────────────
 
-	const paginatedCampaigns = liveCampaigns.slice((campaignPg - 1) * campaignPerPage, campaignPg * campaignPerPage);
+	const paginatedCampaigns = displayedCampaigns.slice((campaignPg - 1) * campaignPerPage, campaignPg * campaignPerPage);
 
 	return (
 		<div className="flex flex-col space-y-6 min-h-full flex-1" onClick={() => setOpenMenu(null)}>
@@ -1935,7 +1975,7 @@ const Campaigns = () => {
 				</Button>
 			</div>
 
-			{/* Metrics Row: Total Campaigns, Active Campaigns, Total Sent (Conversions removed as requested) */}
+			{/* Metrics Row: Total Campaigns, Active Campaigns, Total Sent */}
 			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 				<StatCard
 					label="Total Campaigns"
@@ -1957,6 +1997,34 @@ const Campaigns = () => {
 			{/* Campaigns Table Card */}
 			<Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
 				<CardContent className="flex-1 flex flex-col min-h-0 p-4 md:p-6 space-y-4 overflow-hidden">
+					{/* Tab Switcher for Active vs Trash/Deleted */}
+					<div className="flex items-center justify-between gap-2 border-b border-border/50 pb-3 flex-wrap">
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={() => { setListTab("active"); setCampaignPg(1); }}
+								className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all ${
+									listTab === "active"
+										? "bg-primary text-white shadow-sm"
+										: "bg-secondary/60 text-muted-foreground hover:text-foreground border border-border"
+								}`}
+							>
+								Active Campaigns ({liveCampaigns.length})
+							</button>
+							<button
+								type="button"
+								onClick={() => { setListTab("deleted"); setCampaignPg(1); }}
+								className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all flex items-center gap-1.5 ${
+									listTab === "deleted"
+										? "bg-red-500/20 text-red-400 border border-red-500/40 shadow-sm"
+										: "bg-secondary/60 text-muted-foreground hover:text-foreground border border-border"
+								}`}
+							>
+								<Archive size={13} /> Trash / Deleted ({deletedCampaigns.length})
+							</button>
+						</div>
+					</div>
+
 					<div className="flex-1 overflow-x-auto w-full rounded-lg border border-border/50">
 						<table className="w-full text-left text-[13px]">
 							<thead className="bg-muted/30 text-muted-foreground text-[11px] font-semibold border-b border-border/50 uppercase tracking-wider">
@@ -1983,7 +2051,9 @@ const Campaigns = () => {
 								) : paginatedCampaigns.length === 0 ? (
 									<tr>
 										<td colSpan={8} className="text-center py-8 text-muted-foreground">
-											No campaigns found. Click "New Campaign" to create one.
+											{listTab === "deleted"
+												? "No deleted campaigns found in trash."
+												: 'No campaigns found. Click "New Campaign" to create one.'}
 										</td>
 									</tr>
 								) : (
@@ -2026,73 +2096,97 @@ const Campaigns = () => {
 												{c.totalSent ? Math.round(((c.totalOpened || 0) / c.totalSent) * 100) : 0}%
 											</td>
 											<td className="px-5 py-3.5">
-												<StatusBadge status={c.status} />
+												<StatusBadge status={c.isDeleted ? "deleted" : c.status} />
 											</td>
 											<td className="px-5 py-3.5 text-right relative" onClick={(e) => e.stopPropagation()}>
-												<button
-													type="button"
-													onClick={(e) => {
-														e.stopPropagation();
-														setOpenMenu(openMenu === c._id ? null : c._id);
-													}}
-													className="text-muted-foreground hover:text-foreground transition-colors p-1"
-												>
-													<MoreHorizontal size={14} />
-												</button>
-												{openMenu === c._id && (
-													<div
-														onClick={(e) => e.stopPropagation()}
-														className="absolute right-5 top-10 w-40 bg-card border border-border rounded-xl shadow-xl p-1 z-50 text-left"
+												{listTab === "deleted" ? (
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={(e) => {
+															e.stopPropagation();
+															restoreCampaignMutation.mutate(c._id);
+														}}
+														disabled={restoreCampaignMutation.isPending}
+														className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 text-[11px] font-bold gap-1.5"
 													>
+														{restoreCampaignMutation.isPending ? (
+															<LoadingSpinner size="sm" />
+														) : (
+															<>
+																<RotateCcw size={12} /> Restore
+															</>
+														)}
+													</Button>
+												) : (
+													<>
 														<button
 															type="button"
-															onClick={() => {
-																setSelectedCampaignId(c._id);
-																setOpenMenu(null);
+															onClick={(e) => {
+																e.stopPropagation();
+																setOpenMenu(openMenu === c._id ? null : c._id);
 															}}
-															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
+															className="text-muted-foreground hover:text-foreground transition-colors p-1"
 														>
-															<Eye size={13} /> View Details
+															<MoreHorizontal size={14} />
 														</button>
-														<button
-															type="button"
-															onClick={() => {
-																setEditingCampaign(c);
-																setOpenMenu(null);
-															}}
-															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
-														>
-															<Edit size={13} /> Edit
-														</button>
-														<button
-															type="button"
-															onClick={() => {
-																handleToggleStatus(c._id, c.status);
-																setOpenMenu(null);
-															}}
-															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
-														>
-															{c.status === "active" ? (
-																<>
-																	<PauseCircle size={13} className="text-amber-400" /> Pause
-																</>
-															) : (
-																<>
-																	<PlayCircle size={13} className="text-emerald-400" /> Resume
-																</>
-															)}
-														</button>
-														<button
-															type="button"
-															onClick={() => {
-																handleDeleteCampaign(c._id);
-																setOpenMenu(null);
-															}}
-															className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-red-500/10 text-red-400"
-														>
-															<Trash2 size={13} /> Delete
-														</button>
-													</div>
+														{openMenu === c._id && (
+															<div
+																onClick={(e) => e.stopPropagation()}
+																className="absolute right-5 top-10 w-40 bg-card border border-border rounded-xl shadow-xl p-1 z-50 text-left"
+															>
+																<button
+																	type="button"
+																	onClick={() => {
+																		setSelectedCampaignId(c._id);
+																		setOpenMenu(null);
+																	}}
+																	className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
+																>
+																	<Eye size={13} /> View Details
+																</button>
+																<button
+																	type="button"
+																	onClick={() => {
+																		setEditingCampaign(c);
+																		setOpenMenu(null);
+																	}}
+																	className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
+																>
+																	<Edit size={13} /> Edit
+																</button>
+																<button
+																	type="button"
+																	onClick={() => {
+																		handleToggleStatus(c._id, c.status);
+																		setOpenMenu(null);
+																	}}
+																	className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
+																>
+																	{c.status === "active" ? (
+																		<>
+																			<PauseCircle size={13} className="text-amber-400" /> Pause
+																		</>
+																	) : (
+																		<>
+																			<PlayCircle size={13} className="text-emerald-400" /> Resume
+																		</>
+																	)}
+																</button>
+																<button
+																	type="button"
+																	onClick={() => {
+																		handleDeleteCampaign(c._id);
+																		setOpenMenu(null);
+																	}}
+																	className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-red-500/10 text-red-400"
+																>
+																	<Trash2 size={13} /> Delete
+																</button>
+															</div>
+														)}
+													</>
 												)}
 											</td>
 										</tr>
@@ -2153,6 +2247,40 @@ const Campaigns = () => {
 				}}
 				isSaving={updateCampaignMutation.isPending}
 			/>
+
+			{/* Delete Confirmation Modal Dialog */}
+			<Dialog open={!!deletingCampaignId} onOpenChange={(open) => { if (!open) setDeletingCampaignId(null); }}>
+				<DialogContent className="sm:max-w-md bg-card border border-border">
+					<DialogHeader>
+						<DialogTitle className="text-lg font-bold text-foreground">Delete Campaign</DialogTitle>
+					</DialogHeader>
+					<div className="py-2 text-[13px] text-muted-foreground">
+						Are you sure you want to delete this campaign? This action cannot be undone.
+					</div>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<button
+							type="button"
+							onClick={() => setDeletingCampaignId(null)}
+							disabled={deleteCampaignMutation.isPending}
+							className="px-4 py-2 text-[12px] font-semibold border border-border rounded-xl text-muted-foreground hover:text-foreground transition-colors"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							onClick={() => {
+								if (deletingCampaignId) {
+									deleteCampaignMutation.mutate(deletingCampaignId);
+								}
+							}}
+							disabled={deleteCampaignMutation.isPending}
+							className="px-4 py-2 text-[12px] font-bold bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors flex items-center justify-center gap-2"
+						>
+							{deleteCampaignMutation.isPending ? <LoadingSpinner size="sm" /> : "Delete Campaign"}
+						</button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 };

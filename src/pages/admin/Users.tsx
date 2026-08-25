@@ -1,144 +1,364 @@
-import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+  Download,
+  Search,
+  Ban,
+  Unlock,
+  Copy,
+  MoreHorizontal,
+  Loader2,
+} from "lucide-react";
 import { usersAPI, User } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
-import { useState, useMemo, useEffect } from "react";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Button } from "@/components/ui/button";
-import { Download, Search, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+
+function fmtN(num: number) {
+  return new Intl.NumberFormat().format(num || 0);
+}
+
+function ngn(num: number) {
+  return "₦" + fmtN(num);
+}
+
+function PageHeader({
+  title,
+  subtitle,
+  search,
+  onSearch,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  search?: string;
+  onSearch?: (v: string) => void;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{title}</h1>
+        {subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
+      </div>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+        {search !== undefined && onSearch && (
+          <div className="relative w-full sm:w-72">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder={search}
+              onChange={(e) => onSearch(e.target.value)}
+              className="w-full bg-secondary border border-border rounded-xl pl-9 pr-3 py-2.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+            />
+          </div>
+        )}
+        {action}
+      </div>
+    </div>
+  );
+}
+
+function PurpleBtn({
+  children,
+  onClick,
+  className = "",
+  size = "md",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center justify-center gap-2 rounded-xl font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 ${
+        size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-4 py-2.5 text-[12px]"
+      } ${className}`}
+      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-white/[0.025] border border-border rounded-xl p-5">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-[22px] font-bold text-foreground leading-none mt-1">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-[14px] font-bold text-foreground mb-0.5">{children}</h2>;
+}
+
+function SubLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] text-muted-foreground mb-4">{children}</p>;
+}
+
+function TableWrap({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white/[0.025] border border-border rounded-xl overflow-x-auto w-full mb-4">
+      <table className="w-full text-left border-collapse">{children}</table>
+    </div>
+  );
+}
+
+function THead({ cols }: { cols: string[] }) {
+  return (
+    <thead>
+      <tr className="border-b border-border bg-white/[0.02]">
+        {cols.map((c, i) => (
+          <th key={i} className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+            {c}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function Pagination({ page, total, perPage, onChange }: { page: number; total: number; perPage: number; onChange: (p: number) => void }) {
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-[12px] text-muted-foreground">
+      <span>Showing {total === 0 ? 0 : Math.min((page - 1) * perPage + 1, total)} - {Math.min(page * perPage, total)} of {total}</span>
+      <div className="flex items-center gap-2">
+        <button disabled={page <= 1} onClick={() => onChange(page - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Previous</button>
+        <span>Page {page} of {totalPages}</span>
+        <button disabled={page >= totalPages} onClick={() => onChange(page + 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Next</button>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const norm = (status || "").toLowerCase();
+  if (norm === "active" || norm === "verified") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
+        {status}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-zinc-500/15 text-zinc-400 border border-zinc-500/20 uppercase">
+      {status}
+    </span>
+  );
+}
+
+function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
+  const initials = (name || "?")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const sz = size === "md" ? "size-10 text-[13px]" : "size-8 text-[11px]";
+  return (
+    <div
+      className={`${sz} rounded-full flex items-center justify-center font-bold text-white shrink-0`}
+      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+function DropdownMenu({
+  items,
+  onClose,
+}: {
+  items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }[];
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-xl shadow-xl z-50 p-1 divide-y divide-border/50"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {items.map((item, i) => (
+        <button
+          key={i}
+          onClick={() => {
+            item.onClick();
+            onClose();
+          }}
+          className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] font-medium rounded-lg transition-colors ${
+            item.danger
+              ? "text-red-400 hover:bg-red-500/10"
+              : "text-foreground hover:bg-white/5"
+          }`}
+        >
+          {item.icon}
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SlidePanel({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-[480px] overflow-y-auto bg-background p-6 flex flex-col justify-between">
+        <div>
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-lg font-bold text-foreground">{title}</SheetTitle>
+            {subtitle && <p className="text-[12px] text-muted-foreground">{subtitle}</p>}
+          </SheetHeader>
+          {children}
+        </div>
+        {footer && <div className="pt-5 border-t border-border mt-6">{footer}</div>}
+      </SheetContent>
+    </Sheet>
+  );
+}
 
 const Users = () => {
-  const PAGE_SIZE = 10;
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [frozenIds, setFrozenIds] = useState<Set<string>>(new Set());
+  const [userMenu, setUserMenu] = useState<string | null>(null);
+  const [freezeTarget, setFreezeTarget] = useState<User | null>(null);
+  const [freezeReason, setFreezeReason] = useState("");
+  const [confirmPanel, setConfirmPanel] = useState(false);
+  const perPage = 5;
 
   const {
     data: usersData,
     isLoading,
-    error,
   } = useQuery({
     queryKey: ["users"],
     queryFn: usersAPI.getAll,
   });
 
-  const users = usersData?.users || [];
+  const users: User[] = useMemo(() => usersData?.users || [], [usersData]);
 
-  // Filter users based on search term
-  const filteredUsers = useMemo(() => {
-    if (!searchTerm.trim()) return users;
-    const lowerSearch = searchTerm.toLowerCase();
+  const filtered = useMemo(() => {
+    if (!search.trim()) return users;
+    const lower = search.toLowerCase();
     return users.filter(
-      (user: User) =>
-        user.fullName.toLowerCase().includes(lowerSearch) ||
-        user.email.toLowerCase().includes(lowerSearch) ||
-        (user.username && user.username.toLowerCase().includes(lowerSearch)) ||
-        (user.phoneNumber &&
-          user.phoneNumber.toLowerCase().includes(lowerSearch)) ||
-        user._id.toLowerCase().includes(lowerSearch),
+      (u) =>
+        (u.fullName || "").toLowerCase().includes(lower) ||
+        (u.email || "").toLowerCase().includes(lower) ||
+        (u.phoneNumber || "").includes(search) ||
+        (u._id || "").includes(search)
     );
-  }, [users, searchTerm]);
+  }, [users, search]);
 
-  // Reset to first page when search term changes
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm]);
+  const paged = useMemo(() => {
+    return filtered.slice((page - 1) * perPage, page * perPage);
+  }, [filtered, page, perPage]);
 
-  // Adjust page if it exceeds total pages after filtering
-  const totalPages = Math.ceil(filteredUsers.length / PAGE_SIZE);
-  useEffect(() => {
-    if (page > totalPages && totalPages > 0) {
-      setPage(totalPages);
-    } else if (totalPages === 0) {
-      setPage(1);
-    }
-  }, [page, totalPages]);
-
-  const startIndex = (page - 1) * PAGE_SIZE;
-  const paginatedUsers = filteredUsers.slice(
-    startIndex,
-    startIndex + PAGE_SIZE,
-  );
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-    }).format(amount);
+  const isFrozen = (id: string) => {
+    const u = users.find((x) => x._id === id);
+    if (u?.isBlocked) return true;
+    return frozenIds.has(id);
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const openFreeze = (u: User) => {
+    setFreezeTarget(u);
+    setFreezeReason("");
+    setConfirmPanel(true);
+    setUserMenu(null);
+  };
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const freezeMutation = useMutation({
+    mutationFn: (userId: string) => usersAPI.freezeUserAccount(userId),
+    onSuccess: (data, userId) => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      const targetUser = users.find((u) => u._id === userId);
+      const isCurrentlyBlocked = targetUser?.isBlocked || frozenIds.has(userId);
+      toast({
+        title: isCurrentlyBlocked ? "Account Unfrozen" : "Account Frozen",
+        description:
+          data?.message ||
+          `User account has been successfully ${isCurrentlyBlocked ? "unfrozen" : "frozen"}.`,
+      });
+      setFrozenIds((s) => {
+        const n = new Set(s);
+        if (n.has(userId)) {
+          n.delete(userId);
+        } else {
+          n.add(userId);
+        }
+        return n;
+      });
+      setConfirmPanel(false);
+      setFreezeTarget(null);
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: "Action Failed",
+        description: err?.response?.data?.message || err.message || "Failed to update user status",
+      });
+    },
+  });
+
+  const doFreeze = () => {
+    if (!freezeTarget) return;
+    freezeMutation.mutate(freezeTarget._id);
   };
 
   const downloadCSV = () => {
-    if (!filteredUsers.length) return;
-
+    if (!filtered.length) return;
     const headers = [
       "ID",
       "Full Name",
       "Email",
       "Phone",
-      "Username",
       "Naira Wallet",
       "Dollar Wallet",
       "KYC Level",
-      "Has KYC",
       "Verified",
       "Blocked",
       "Has Quidax",
-      "Referral Code",
-      "Referred By",
       "Created At",
-      "Last Login",
     ];
 
-    const rows = filteredUsers.map((user: User) => [
-      user._id,
-      user.fullName,
-      user.email,
-      user.phoneNumber,
-      user.username,
-      user.nairaWallet,
-      user.dollarWallet,
-      user.kycLevel,
-      user.hasKyc,
-      user.isVerified,
-      user.isBlocked,
-      user.hasQuidaxId,
-      user.referralCode,
-      user.referredBy || "",
-      user.createdAt,
-      user.lastLogin || "",
+    const rows = filtered.map((u) => [
+      u._id,
+      u.fullName,
+      u.email,
+      u.phoneNumber || "",
+      u.nairaWallet || 0,
+      u.dollarWallet || 0,
+      u.kycLevel || 0,
+      u.isVerified || false,
+      u.isBlocked || false,
+      u.hasQuidaxId || false,
+      u.createdAt || "",
     ]);
 
     const csvContent =
@@ -148,289 +368,260 @@ const Users = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      searchTerm ? "filtered-users.csv" : "users.csv",
-    );
+    link.setAttribute("download", search ? "filtered-users.csv" : "users.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const clearSearch = () => {
-    setSearchTerm("");
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card className="bg-gradient-card border-border/50">
-        <CardContent className="pt-6">
-          <div className="text-center text-destructive">
-            Error loading users: {(error as any)?.message || "Unknown error"}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const activeCount = useMemo(() => users.filter((u) => !u.isBlocked).length, [users]);
+  const kycCount = useMemo(() => users.filter((u) => u.hasKyc || u.kycLevel > 0).length, [users]);
+  const quidaxCount = useMemo(() => users.filter((u) => u.hasQuidaxId).length, [users]);
 
   return (
-    <div className="flex flex-col space-y-6 min-h-full flex-1">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Manage and view all registered users on the platform
-          </p>
-        </div>
+    <div className="flex-1 overflow-y-auto p-4 sm:p-7" onClick={() => setUserMenu(null)}>
+      <PageHeader
+        title="Users"
+        subtitle={`${fmtN(filtered.length)} users found`}
+        search="Search by name, email, phone, ID…"
+        onSearch={(v) => {
+          setSearch(v);
+          setPage(1);
+        }}
+        action={
+          <PurpleBtn onClick={downloadCSV}>
+            <Download size={13} /> Download CSV
+          </PurpleBtn>
+        }
+      />
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, email, phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-8 text-sm"
-            />
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          <Button onClick={downloadCSV} className="flex items-center justify-center gap-2 shrink-0">
-            <Download className="h-4 w-4" />
-            Download CSV
-          </Button>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <StatCard label="Total Users" value={fmtN(users.length)} />
+        <StatCard label="Active (30d)" value={fmtN(activeCount)} sub="+12.4%" />
+        <StatCard label="KYC Verified" value={fmtN(kycCount)} />
+        <StatCard label="Crypto Wallets (Quidax)" value={fmtN(quidaxCount)} sub="Generated via Quidax" />
       </div>
 
-      <Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
-        <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>
-            {filteredUsers.length === users.length
-              ? `Total of ${users.length} users on Ravasend`
-              : `Showing ${filteredUsers.length} of ${users.length} users`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col min-h-0 p-4 md:p-6 space-y-4 overflow-hidden">
-          <div className="flex-1 overflow-auto w-full rounded-lg border border-border/50">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone Number</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>NGN Balance</TableHead>
-                  <TableHead>USD Balance</TableHead>
-                  <TableHead>KYC Level</TableHead>
-                  <TableHead>Registered</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-muted-foreground"
+      <SectionLabel>All Users</SectionLabel>
+      <SubLabel>Showing {filtered.length} of {fmtN(users.length)} registered accounts</SubLabel>
+
+      <TableWrap>
+        <THead cols={["User", "Email", "Phone", "Status / Wallet", "NGN Balance", "USD Balance", "KYC", "Joined", ""]} />
+        <tbody className="divide-y divide-border">
+          {isLoading ? (
+            <tr>
+              <td colSpan={9} className="px-5 py-12 text-center text-[12px] text-muted-foreground">
+                <Loader2 className="animate-spin inline mr-2" size={14} /> Loading registered users...
+              </td>
+            </tr>
+          ) : paged.length > 0 ? (
+            paged.map((u) => {
+              const frozen = isFrozen(u._id);
+              return (
+                <tr
+                  key={u._id}
+                  className={`hover:bg-white/[0.02] transition-colors cursor-pointer group ${
+                    frozen ? "bg-red-500/[0.03]" : ""
+                  }`}
+                >
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <Avatar name={u.fullName} />
+                        {frozen && (
+                          <span className="absolute -top-0.5 -right-0.5 size-3 bg-red-500 rounded-full border border-background flex items-center justify-center">
+                            <Ban size={7} className="text-white" />
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {u.fullName}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground font-mono">ID: {u._id.slice(-6)}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 text-[12px] text-muted-foreground">{u.email}</td>
+                  <td className="px-5 py-3.5 text-[12px] font-mono text-foreground">{u.phoneNumber || "-"}</td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex flex-col gap-1 items-start">
+                      <StatusBadge status={frozen ? "inactive" : "ACTIVE"} />
+                      {frozen && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-500/15 text-red-400 border border-red-500/20">
+                          <Ban size={8} /> FROZEN
+                        </span>
+                      )}
+                      {u.isVerified && !frozen && <StatusBadge status="VERIFIED" />}
+                      {u.hasQuidaxId && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20">
+                          <span className="size-1.5 rounded-full bg-violet-400 inline-block" /> Crypto Wallet
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 text-[12px] font-mono text-foreground">{ngn(u.nairaWallet || 0)}</td>
+                  <td className="px-5 py-3.5 text-[12px] font-mono text-foreground">${u.dollarWallet || 0}</td>
+                  <td className="px-5 py-3.5 text-[12px] text-foreground">L{u.kycLevel || 0}</td>
+                  <td className="px-5 py-3.5 text-[12px] text-muted-foreground whitespace-nowrap">
+                    {u.createdAt ? formatDistanceToNow(new Date(u.createdAt), { addSuffix: true }) : "-"}
+                  </td>
+                  <td className="px-5 py-3.5 relative">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUserMenu(userMenu === u._id ? null : u._id);
+                      }}
+                      className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
                     >
-                      No users found matching your search.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedUsers.map((user: User) => (
-                    <TableRow key={user._id} className="hover:bg-muted/20">
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={user.image} alt={user.fullName} />
-                            <AvatarFallback className="bg-primary/20 text-primary">
-                              {getInitials(user.fullName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{user.fullName}</div>
-                            <div className="text-sm text-muted-foreground">
-                              ID: {user._id.slice(-6)}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div>{user.email}</div>
-                          {user.isVerified && (
-                            <Badge
-                              variant="secondary"
-                              className="h-5 text-xs bg-green-500/20 text-green-400"
-                            >
-                              Verified
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div>{user.phoneNumber}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <Badge
-                            variant={user.isBlocked ? "destructive" : "default"}
-                            className={
-                              user.isBlocked
-                                ? ""
-                                : "bg-green-500/20 text-green-400"
-                            }
-                          >
-                            {user.isBlocked ? "Blocked" : "Active"}
-                          </Badge>
-                          {user.hasQuidaxId && (
-                            <div>
-                              <Badge variant="outline" className="h-5 text-xs">
-                                Quidax ID
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">
-                          {formatCurrency(user.nairaWallet)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">${user?.dollarWallet}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Badge
-                            variant="outline"
-                            className={
-                              user.hasKyc
-                                ? "bg-green-500/20 text-green-400"
-                                : ""
-                            }
-                          >
-                            Level {user.kycLevel}
-                          </Badge>
-                          {user.hasKyc && (
-                            <Badge
-                              variant="secondary"
-                              className="h-5 text-xs bg-blue-500/20 text-blue-400"
-                            >
-                              KYC Complete
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {formatDistanceToNow(new Date(user.createdAt), {
-                            addSuffix: true,
-                          })}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {filteredUsers.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-border/50 shrink-0">
-              <span className="text-[12px] text-muted-foreground text-center sm:text-left">
-                Showing {startIndex + 1} - {Math.min(startIndex + PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length} users
-              </span>
-              {totalPages > 1 && (
-                <Pagination className="mx-0 w-auto">
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                        className={
-                          page === 1
-                            ? "pointer-events-none opacity-50"
-                            : "cursor-pointer"
-                        }
+                      <MoreHorizontal size={15} />
+                    </button>
+                    {userMenu === u._id && (
+                      <DropdownMenu
+                        onClose={() => setUserMenu(null)}
+                        items={[
+                          {
+                            label: frozen ? "Unfreeze Account" : "Freeze Account",
+                            icon: frozen ? <Unlock size={13} /> : <Ban size={13} />,
+                            onClick: () => openFreeze(u),
+                            danger: !frozen,
+                          },
+                          {
+                            label: "Copy User ID",
+                            icon: <Copy size={13} />,
+                            onClick: () => navigator.clipboard.writeText(u._id),
+                          },
+                        ]}
                       />
-                    </PaginationItem>
-
-                    {Array.from({ length: Math.min(totalPages, 5) }).map(
-                      (_, index) => {
-                        let pageNumber = index + 1;
-                        if (totalPages > 5) {
-                          if (page <= 3) {
-                            pageNumber = index + 1;
-                          } else if (page >= totalPages - 2) {
-                            pageNumber = totalPages - 4 + index;
-                          } else {
-                            pageNumber = page - 2 + index;
-                          }
-                        }
-                        return (
-                          <PaginationItem key={pageNumber}>
-                            <PaginationLink
-                              className="cursor-pointer"
-                              isActive={page === pageNumber}
-                              onClick={() => setPage(pageNumber)}
-                            >
-                              {pageNumber}
-                            </PaginationLink>
-                          </PaginationItem>
-                        );
-                      },
                     )}
-
-                    {totalPages > 5 && page < totalPages - 2 && (
-                      <>
-                        <PaginationItem>
-                          <span className="px-2">...</span>
-                        </PaginationItem>
-                        <PaginationItem>
-                          <PaginationLink
-                            className="cursor-pointer"
-                            onClick={() => setPage(totalPages)}
-                          >
-                            {totalPages}
-                          </PaginationLink>
-                        </PaginationItem>
-                      </>
-                    )}
-
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() =>
-                          setPage((p) => Math.min(p + 1, totalPages))
-                        }
-                        className={
-                          page === totalPages
-                            ? "pointer-events-none opacity-50"
-                            : "cursor-pointer"
-                        }
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              )}
-            </div>
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <tr>
+              <td colSpan={9} className="px-5 py-12 text-center text-[12px] text-muted-foreground">
+                No users match your search.
+              </td>
+            </tr>
           )}
-        </CardContent>
-      </Card>
+        </tbody>
+      </TableWrap>
+
+      <Pagination page={page} total={filtered.length} perPage={perPage} onChange={setPage} />
+
+      {/* Freeze / Unfreeze confirmation panel */}
+      <SlidePanel
+        open={confirmPanel}
+        onClose={() => {
+          setConfirmPanel(false);
+          setFreezeTarget(null);
+        }}
+        title={freezeTarget && isFrozen(freezeTarget._id) ? "Unfreeze Account" : "Freeze Account"}
+        subtitle={freezeTarget?.fullName}
+        footer={
+          <div className="flex gap-3">
+            <button
+              onClick={doFreeze}
+              disabled={freezeMutation.isPending}
+              className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                freezeTarget && isFrozen(freezeTarget._id)
+                  ? "bg-emerald-600 hover:bg-emerald-500"
+                  : "bg-red-600 hover:bg-red-500"
+              } disabled:opacity-50`}
+            >
+              {freezeMutation.isPending ? (
+                <>
+                  <Loader2 className="animate-spin" size={14} /> Processing...
+                </>
+              ) : freezeTarget && isFrozen(freezeTarget._id) ? (
+                "Confirm Unfreeze"
+              ) : (
+                "Confirm Freeze"
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setConfirmPanel(false);
+                setFreezeTarget(null);
+              }}
+              className="px-5 py-2.5 rounded-xl border border-border text-muted-foreground text-[13px] hover:text-foreground hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        }
+      >
+        {freezeTarget && (
+          <div className="space-y-5">
+            <div
+              className={`p-4 rounded-xl border ${
+                isFrozen(freezeTarget._id)
+                  ? "bg-emerald-500/8 border-emerald-500/20"
+                  : "bg-red-500/8 border-red-500/20"
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <Avatar name={freezeTarget.fullName} size="md" />
+                <div>
+                  <p className="text-[14px] font-bold text-foreground">{freezeTarget.fullName}</p>
+                  <p className="text-[11px] text-muted-foreground">{freezeTarget.email}</p>
+                  <p className="text-[11px] font-mono text-muted-foreground">{freezeTarget.phoneNumber || "-"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border">
+                <div>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">NGN Balance</p>
+                  <p className="text-[13px] font-bold text-foreground">{ngn(freezeTarget.nairaWallet || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Status</p>
+                  <StatusBadge status={isFrozen(freezeTarget._id) ? "inactive" : "ACTIVE"} />
+                </div>
+              </div>
+            </div>
+            {isFrozen(freezeTarget._id) ? (
+              <div>
+                <p className="text-[13px] text-foreground font-medium mb-1">This account is currently frozen.</p>
+                <p className="text-[12px] text-muted-foreground">
+                  Unfreezing will restore full access — the user can log in, transact, send, and withdraw normally.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <p className="text-[13px] text-foreground font-medium mb-1">What does freezing do?</p>
+                  <ul className="text-[12px] text-muted-foreground space-y-1 list-none">
+                    {[
+                      "Blocks all outbound transactions (withdrawals, transfers, bill payments)",
+                      "Blocks inbound deposits",
+                      "User cannot log in or access the app",
+                      "All pending withdrawals are held",
+                    ].map((item, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-red-400 mt-0.5 shrink-0">✕</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
+                    Reason for freezing <span className="text-red-400">*</span>
+                  </label>
+                  <textarea
+                    value={freezeReason}
+                    onChange={(e) => setFreezeReason(e.target.value)}
+                    rows={3}
+                    className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
+                    placeholder="e.g. Suspicious activity detected, compliance review required…"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </SlidePanel>
     </div>
   );
 };

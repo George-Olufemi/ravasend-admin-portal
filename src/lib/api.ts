@@ -83,7 +83,8 @@ export interface Transaction {
   sessionId: string;
   destinationAccountNumber: string;
   destinationAccountName: string;
-  destionationBankName: string;
+  destinationBankName?: string;
+  destionationBankName?: string;
   reference: string;
   status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED" | "Done" | "accepted" | "completed" | "SUCCESSFUL" | "pending" | "Pending" | "SUCCESS" | "done";
   fee: number;
@@ -364,6 +365,10 @@ export const usersAPI = {
     const response = await api.get("/api/v1/user/getAllusers");
     return response.data;
   },
+  freezeUserAccount: async (userId: string): Promise<any> => {
+    const response = await api.post(`/api/v1/access-control/user-access-control?userId=${userId}`);
+    return response.data;
+  },
 };
 
 export const transactionAPI = {
@@ -641,8 +646,9 @@ export const campaignAPI = {
     const response = await api.get("/api/v1/campaign/getTotalCampaignSent");
     return response.data;
   },
-  createCampaign: async (data: any): Promise<SingleCampaignResponse> => {
-    const response = await api.post("/api/v1/campaign/createCampaign", data);
+  createCampaign: async (id: string, data: any): Promise<SingleCampaignResponse> => {
+    const cleanId = id ? (id.startsWith("/") ? id : `/${id}`) : "";
+    const response = await api.post(`/api/v1/campaign/createCampaign${cleanId}`, data);
     return response.data;
   },
   getCampaignById: async (id: string): Promise<SingleCampaignResponse> => {
@@ -657,11 +663,23 @@ export const campaignAPI = {
     const response = await api.delete(`/api/v1/campaign/deleteCampaign/${id}`);
     return response.data;
   },
-  sendBulkEmail: async (data): Promise<any> => {
+  restoreCampaign: async (id: string): Promise<any> => {
+    try {
+      const response = await api.put(`/api/v1/campaign/restoreCampaign/${id}`);
+      return response.data;
+    } catch (err: any) {
+      if (err?.response?.status === 404 || err?.response?.status === 405) {
+        const response = await api.post(`/api/v1/campaign/restoreCampaign/${id}`);
+        return response.data;
+      }
+      throw err;
+    }
+  },
+  sendBulkEmail: async (data: { subject: string; message: string; recipients: string[] }): Promise<any> => {
     const response = await api.post("/api/v1/admin/send-bulk-email", data);
     return response.data;
   },
-  sendBulkPushNotification: async (data): Promise<any> => {
+  sendBulkPushNotification: async (data: { subject: string; message: string; recipients: string[] }): Promise<any> => {
     const response = await api.post("/api/v1/admin/send-bulk-in-app", data);
     return response.data;
   },
@@ -687,12 +705,61 @@ export const campaignAPI = {
   },
 }
 
+export interface SegmentItem {
+  _id: string;
+  segmentName: string;
+  description: string;
+  emails: string[];
+  totalUserTargeted: number;
+  status: string;
+  isLinkedToCampaign: boolean;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  __v?: number;
+}
+
+export interface SegmentsResponse {
+  success: boolean;
+  message: string;
+  count: number;
+  data: SegmentItem[];
+}
+
+export interface SingleSegmentResponse {
+  success: boolean;
+  message: string;
+  data: SegmentItem;
+}
+
+export interface CreateSegmentPayload {
+  segmentName: string;
+  description: string;
+  emails: string[];
+}
+
 export const segmentAPI = {
-  createSegment: async (data: any): Promise<SingleCampaignResponse> => {
-    const response = await api.post("/api/v1/segment/createSegment", data);
+  getAllSegments: async (): Promise<SegmentsResponse> => {
+    const response = await api.get("/api/v1/segment/get-all-segments");
     return response.data;
   },
-}
+  getSegmentById: async (id: string): Promise<SingleSegmentResponse> => {
+    const response = await api.get(`/api/v1/segment/get-segment/${id}`);
+    return response.data;
+  },
+  createSegment: async (data: CreateSegmentPayload): Promise<SingleSegmentResponse> => {
+    const response = await api.post("/api/v1/segment/create-segment", data);
+    return response.data;
+  },
+  updateSegment: async (id: string, data: CreateSegmentPayload): Promise<SingleSegmentResponse> => {
+    const response = await api.put(`/api/v1/segment/update-segment/${id}`, data);
+    return response.data;
+  },
+  deleteSegment: async (id: string): Promise<any> => {
+    const response = await api.delete(`/api/v1/segment/delete-segment/${id}`);
+    return response.data;
+  },
+};
 
 export const auditAPI = {
   getAllAudit: async () => {

@@ -370,11 +370,9 @@ const Audits = () => {
 					const adminObj = typeof a.userId === "object" ? a.userId : null;
 					const adminDisplay = adminObj?.fullName || adminObj?.email || "Admin User";
 					const avatarText = getInitials(adminDisplay);
-
 					const normWarn = (a.warning || "info").toLowerCase();
 					const sevKey = normWarn.includes("crit") ? "critical" : normWarn.includes("warn") ? "warning" : "info";
 					const sev = sevConfig[sevKey] || sevConfig.info;
-
 					const catName = a.resourceType || a.featureName;
 					const catCls = catConfig[catName] || "bg-violet-500/10 text-violet-400 border-violet-500/20";
 					const statusCls = statusConfig[a.status || ""] || "bg-zinc-500/15 text-zinc-400 border-zinc-500/20";
@@ -408,11 +406,11 @@ const Audits = () => {
 											{sev.label}
 										</span>
 
-										{catName && (
+										{/* {catName && (
 											<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${catCls}`}>
 												{catName}
 											</span>
-										)}
+										)} */}
 
 										{a.status && (
 											<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}`}>
