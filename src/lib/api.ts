@@ -732,6 +732,18 @@ export interface SingleSegmentResponse {
   data: SegmentItem;
 }
 
+export interface SegmentUsersResponse {
+  success: boolean;
+  message: string;
+  total: number;
+  data: Array<{
+    _id: string;
+    email: string;
+    kycLevel?: number;
+    [key: string]: any;
+  }>;
+}
+
 export interface CreateSegmentPayload {
   segmentName: string;
   description: string;
@@ -745,6 +757,14 @@ export const segmentAPI = {
   },
   getSegmentById: async (id: string): Promise<SingleSegmentResponse> => {
     const response = await api.get(`/api/v1/segment/get-segment/${id}`);
+    return response.data;
+  },
+  getSegmentUsers: async (segmentTerm?: string, level?: string | number): Promise<SegmentUsersResponse> => {
+    const params = new URLSearchParams();
+    if (segmentTerm) params.append("segmentTerm", segmentTerm);
+    if (level !== undefined && level !== null && level !== "") params.append("level", String(level));
+    const queryString = params.toString();
+    const response = await api.get(`/api/v1/segment/get-segment-users${queryString ? `?${queryString}` : ""}`);
     return response.data;
   },
   createSegment: async (data: CreateSegmentPayload): Promise<SingleSegmentResponse> => {

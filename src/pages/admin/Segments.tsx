@@ -121,6 +121,31 @@ function SlidePanel({
 
 const COLOR_PALETTE = ["#7B3FE4", "#F59E0B", "#4ADE80", "#F87171", "#A78BFA", "#60A5FA", "#34D399", "#FB923C"];
 
+interface Criterion {
+	id: string;
+	field: string;
+	operator: string;
+	value: string;
+	valueB?: string;
+}
+
+const SEG_FIELDS = [
+	{ key: "kycLevel", label: "KYC Level", type: "enum" },
+	{ key: "tier", label: "Tier / Level", type: "enum" },
+	{ key: "status", label: "Account Status", type: "enum" },
+	{ key: "balance", label: "Wallet Balance ($)", type: "currency" },
+	{ key: "totalDeposits", label: "Total Deposits ($)", type: "currency" },
+	{ key: "createdDays", label: "Days Since Signup", type: "number" },
+];
+
+const SEG_ENUM_VALUES: Record<string, string[]> = {
+	kycLevel: ["0", "1", "2", "3"],
+	tier: ["Tier 1", "Tier 2", "Tier 3", "VIP"],
+	status: ["Active", "Inactive", "Suspended", "Pending"],
+};
+
+const SEG_OPERATORS = ["=", "!=", ">", "<", ">=", "<=", "between", "is set", "is not set"];
+
 const Segments = () => {
 	const navigate = useNavigate();
 	const { toast } = useToast();
@@ -129,10 +154,46 @@ const Segments = () => {
 	const [showBuilder, setShowBuilder] = useState(false);
 	const [editSeg, setEditSeg] = useState<SegmentItem | null>(null);
 	const [filter, setFilter] = useState<"all" | "active" | "draft" | "linked">("all");
-	const [segmentName, setSegmentName] = useState("");
-	const [description, setDescription] = useState("");
-	const [emailsInput, setEmailsInput] = useState("");
+	const [newName, setNewName] = useState("");
+	const [newDesc, setNewDesc] = useState("");
+	const [logic, setLogic] = useState<"AND" | "OR">("AND");
+	const [criteria, setCriteria] = useState<Criterion[]>([
+		{ id: "1", field: "kycLevel", operator: "=", value: "1" },
+	]);
 	const [deletingSegmentId, setDeletingSegmentId] = useState<string | null>(null);
+
+	const primaryCriterion = criteria[0];
+
+	// Fetch users based on selected condition
+	const { data: segmentUsersResponse } = useQuery({
+		queryKey: ["segment-users", primaryCriterion?.field, primaryCriterion?.value],
+		queryFn: () => segmentAPI.getSegmentUsers(primaryCriterion?.field || "kycLevel", primaryCriterion?.value || "1"),
+		enabled: showBuilder && Boolean(primaryCriterion?.field),
+	});
+
+	const estimatedCount = segmentUsersResponse?.total ?? (segmentUsersResponse?.data ? segmentUsersResponse.data.length : 0);
+
+	const fetchedEmails = useMemo(() => {
+		return (segmentUsersResponse?.data || []).map((u) => u.email).filter(Boolean);
+	}, [segmentUsersResponse]);
+
+	const addCriterion = () => {
+		setCriteria((prev) => [
+			...prev,
+			{ id: String(Date.now()), field: "kycLevel", operator: "=", value: "0" },
+		]);
+	};
+
+	const updateCriterion = (id: string, patch: Partial<Criterion>) => {
+		setCriteria((prev) =>
+			prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
+		);
+	};
+
+	const removeCriterion = (id: string) => {
+		if (criteria.length <= 1) return;
+		setCriteria((prev) => prev.filter((c) => c.id !== id));
+	};
 
 	// Fetch all segments using segmentAPI
 	const { data: segmentsResponse, isLoading: isSegmentsLoading } = useQuery({
@@ -217,31 +278,26 @@ const Segments = () => {
 		},
 	});
 
-	const parsedEmails = useMemo(() => {
-		return emailsInput
-			.split(/[\s,]+/)
-			.map((e) => e.trim())
-			.filter(Boolean);
-	}, [emailsInput]);
-
 	const openNew = () => {
 		setEditSeg(null);
-		setSegmentName("");
-		setDescription("");
-		setEmailsInput("");
+		setNewName("");
+		setNewDesc("");
+		setLogic("AND");
+		setCriteria([{ id: "1", field: "kycLevel", operator: "=", value: "1" }]);
 		setShowBuilder(true);
 	};
 
 	const openEdit = (seg: SegmentItem) => {
 		setEditSeg(seg);
-		setSegmentName(seg.segmentName || "");
-		setDescription(seg.description || "");
-		setEmailsInput((seg.emails || []).join(", "));
+		setNewName(seg.segmentName || "");
+		setNewDesc(seg.description || "");
+		setLogic("AND");
+		setCriteria([{ id: "1", field: "kycLevel", operator: "=", value: "1" }]);
 		setShowBuilder(true);
 	};
 
 	const saveSegment = () => {
-		if (!segmentName.trim()) {
+		if (!newName.trim()) {
 			toast({
 				variant: "destructive",
 				title: "Missing Name",
@@ -250,10 +306,12 @@ const Segments = () => {
 			return;
 		}
 
+		const emailsToSend = fetchedEmails.length > 0 ? fetchedEmails : (editSeg?.emails || []);
+
 		const payload: CreateSegmentPayload = {
-			segmentName: segmentName.trim(),
-			description: description.trim(),
-			emails: parsedEmails,
+			segmentName: newName.trim(),
+			description: newDesc.trim(),
+			emails: emailsToSend,
 		};
 
 		if (editSeg) {
@@ -272,7 +330,7 @@ const Segments = () => {
 				<div>
 					<h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Segments</h1>
 					<p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-						Targeted user buckets — define email lists and target criteria for your campaigns
+						Targeted user buckets — define criteria with AND/OR logic to dynamically match users for your campaigns
 					</p>
 				</div>
 				<PurpleBtn onClick={openNew}>
@@ -446,7 +504,7 @@ const Segments = () => {
 				open={showBuilder}
 				onClose={() => setShowBuilder(false)}
 				title={editSeg ? "Edit Segment" : "New Segment"}
-				subtitle="Define segment name, description, and list of targeted user emails"
+				subtitle="Define criteria with AND/OR logic to dynamically match users"
 				footer={
 					<div className="flex gap-3">
 						<PurpleBtn onClick={saveSegment} disabled={isSubmitting}>
@@ -474,51 +532,173 @@ const Segments = () => {
 							Segment Name <span className="text-red-400">*</span>
 						</label>
 						<input
-							value={segmentName}
-							onChange={(e) => setSegmentName(e.target.value)}
+							value={newName}
+							onChange={(e) => setNewName(e.target.value)}
 							className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
-							placeholder="e.g. 500 bonus"
+							placeholder="e.g. New Users — No First Deposit"
 						/>
 					</div>
 					<div>
 						<label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">Description</label>
 						<textarea
-							value={description}
-							onChange={(e) => setDescription(e.target.value)}
-							className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none h-20"
-							placeholder="If you deposit 1000 dollars you get 5000 naira"
+							value={newDesc}
+							onChange={(e) => setNewDesc(e.target.value)}
+							className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none h-16"
+							placeholder="What does this segment represent?"
 						/>
 					</div>
 
+					{/* Logic toggle */}
 					<div>
-						<div className="flex items-center justify-between mb-1.5">
-							<label className="text-[11px] text-muted-foreground font-semibold">
-								Targeted User Emails
-							</label>
-							<span className="text-[11px] text-primary font-bold">
-								{parsedEmails.length} emails targeted
-							</span>
+						<label className="text-[11px] text-muted-foreground font-semibold block mb-2">Condition Logic</label>
+						<div className="flex gap-2">
+							{(["AND", "OR"] as const).map((l) => (
+								<button
+									key={l}
+									type="button"
+									onClick={() => setLogic(l)}
+									className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold border transition-all ${
+										logic === l
+											? "border-primary/40 bg-primary/10 text-primary"
+											: "border-border text-muted-foreground hover:text-foreground"
+									}`}
+								>
+									{l === "AND" ? "AND — All must match" : "OR — Any must match"}
+								</button>
+							))}
 						</div>
-						<textarea
-							value={emailsInput}
-							onChange={(e) => setEmailsInput(e.target.value)}
-							className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[12px] font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none h-36"
-							placeholder="Paste or type emails separated by commas or line breaks&#10;e.g. user1@example.com, user2@example.com"
-						/>
-						<p className="text-[10px] text-muted-foreground mt-1">
-							Enter multiple email addresses separated by commas, spaces, or newlines.
-						</p>
 					</div>
 
-					{/* Live summary card */}
+					{/* Criteria rows */}
+					<div>
+						<div className="flex items-center justify-between mb-2.5">
+							<label className="text-[11px] text-muted-foreground font-semibold">
+								Conditions ({criteria.length})
+							</label>
+							<button
+								type="button"
+								onClick={addCriterion}
+								className="flex items-center gap-1 text-[11px] text-primary font-semibold hover:text-primary/80 transition-colors"
+							>
+								<Plus size={11} /> Add condition
+							</button>
+						</div>
+						<div className="space-y-2">
+							{criteria.map((c, i) => {
+								const fieldDef = SEG_FIELDS.find((f) => f.key === c.field);
+								const isEnum = fieldDef?.type === "enum";
+								const enumVals = isEnum ? SEG_ENUM_VALUES[c.field] || [] : [];
+								const isBetween = c.operator === "between";
+								const noValue = c.operator === "is set" || c.operator === "is not set";
+								return (
+									<div key={c.id}>
+										{i > 0 && (
+											<div className="flex items-center gap-2 my-1.5">
+												<div className="flex-1 h-px bg-border/50" />
+												<span
+													className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border ${
+														logic === "AND"
+															? "bg-primary/10 text-primary border-primary/25"
+															: "bg-amber-500/10 text-amber-400 border-amber-500/25"
+													}`}
+												>
+													{logic}
+												</span>
+												<div className="flex-1 h-px bg-border/50" />
+											</div>
+										)}
+										<div className="bg-secondary/60 border border-border rounded-xl p-3 flex items-center gap-2 flex-wrap">
+											{/* Field selector */}
+											<select
+												value={c.field}
+												onChange={(e) =>
+													updateCriterion(c.id, { field: e.target.value, operator: "=", value: "" })
+												}
+												className="flex-1 min-w-[140px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+											>
+												{SEG_FIELDS.map((f) => (
+													<option key={f.key} value={f.key}>
+														{f.label}
+													</option>
+												))}
+											</select>
+											{/* Operator */}
+											<select
+												value={c.operator}
+												onChange={(e) => updateCriterion(c.id, { operator: e.target.value })}
+												className="w-28 bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-primary font-bold focus:outline-none focus:border-primary/50"
+											>
+												{SEG_OPERATORS.map((op) => (
+													<option key={op} value={op}>
+														{op}
+													</option>
+												))}
+											</select>
+											{/* Value */}
+											{!noValue &&
+												(isEnum ? (
+													<select
+														value={c.value}
+														onChange={(e) => updateCriterion(c.id, { value: e.target.value })}
+														className="flex-1 min-w-[100px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+													>
+														{enumVals.map((v) => (
+															<option key={v} value={v}>
+																{v}
+															</option>
+														))}
+													</select>
+												) : (
+													<input
+														value={c.value}
+														onChange={(e) => updateCriterion(c.id, { value: e.target.value })}
+														placeholder={fieldDef?.type === "currency" ? "e.g. 5000" : "Value"}
+														className="flex-1 min-w-[80px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground font-mono focus:outline-none focus:border-primary/50"
+													/>
+												))}
+											{isBetween && !noValue && (
+												<>
+													<span className="text-[11px] text-muted-foreground shrink-0">and</span>
+													<input
+														value={c.valueB ?? ""}
+														onChange={(e) => updateCriterion(c.id, { valueB: e.target.value })}
+														placeholder="Max"
+														className="w-20 bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground font-mono focus:outline-none focus:border-primary/50"
+													/>
+												</>
+											)}
+											<button
+												type="button"
+												onClick={() => removeCriterion(c.id)}
+												disabled={criteria.length === 1}
+												className="size-7 rounded-lg border border-border text-muted-foreground hover:text-red-400 hover:border-red-500/20 flex items-center justify-center transition-colors disabled:opacity-30 shrink-0"
+											>
+												<Trash2 size={11} />
+											</button>
+										</div>
+									</div>
+								);
+							})}
+						</div>
+					</div>
+
+					{/* Live estimate */}
 					<div className="flex items-center gap-4 p-4 bg-primary/5 border border-primary/15 rounded-xl">
 						<div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
 							<Users size={16} className="text-primary" />
 						</div>
 						<div>
-							<p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Matched Users Target</p>
-							<p className="text-[24px] font-black text-primary leading-none">{fmtN(parsedEmails.length)}</p>
-							<p className="text-[10px] text-muted-foreground">email targets specified</p>
+							<p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">
+								Estimated match
+							</p>
+							<p className="text-[24px] font-black text-primary leading-none">~{fmtN(estimatedCount)}</p>
+							<p className="text-[10px] text-muted-foreground">users match these criteria</p>
+						</div>
+						<div className="ml-auto text-right">
+							<p className="text-[10px] text-muted-foreground">of total users</p>
+							<p className="text-[16px] font-bold text-foreground">
+								{Math.round((estimatedCount / 15847) * 100)}%
+							</p>
 						</div>
 					</div>
 				</div>
