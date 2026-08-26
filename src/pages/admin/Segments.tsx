@@ -130,12 +130,76 @@ interface Criterion {
 }
 
 const SEG_FIELDS = [
-	{ key: "kycLevel", label: "KYC Level", type: "enum" },
-	{ key: "tier", label: "Tier / Level", type: "enum" },
-	{ key: "status", label: "Account Status", type: "enum" },
-	{ key: "balance", label: "Wallet Balance ($)", type: "currency" },
-	{ key: "totalDeposits", label: "Total Deposits ($)", type: "currency" },
-	{ key: "createdDays", label: "Days Since Signup", type: "number" },
+	{
+		key: "nairaWallet",
+		label: "Naira Wallet Balance (₦)",
+		type: "currency",
+	},
+
+	{
+		key: "dollarWallet",
+		label: "Dollar Wallet Balance ($)",
+		type: "currency",
+	},
+
+	{
+		key: "isFirstDeposit",
+		label: "Has Made First Deposit",
+		type: "boolean",
+	},
+
+	{
+		key: "isFirstConversion",
+		label: "Has Made First Conversion",
+		type: "boolean",
+	},
+
+	{
+		key: "kycLevel",
+		label: "KYC Verification Level",
+		type: "enum",
+	},
+
+	{
+		key: "depositCount",
+		label: "Number of Deposits",
+		type: "number",
+	},
+
+	{
+		key: "referralCount",
+		label: "Number of Referrals",
+		type: "number",
+	},
+
+	{
+		key: "totalDeposited",
+		label: "Total Amount Deposited",
+		type: "currency",
+	},
+
+	{
+		key: "daySinceSignUp",
+		label: "Days Since Sign Up",
+		type: "number",
+	},
+
+	{
+		key: "daySinceLastTransact",
+		label: "Days Since Last Transaction",
+		type: "number",
+	},
+
+	{
+		key: "country",
+		label: "Country",
+		type: "enum",
+	},
+	// {
+	// 	key: "accountStatus",
+	// 	label: "Account Status",
+	// 	type: "enum",
+	// },
 ];
 
 const SEG_ENUM_VALUES: Record<string, string[]> = {
@@ -365,19 +429,18 @@ const Segments = () => {
 						key={f}
 						type="button"
 						onClick={() => setFilter(f)}
-						className={`text-[12px] font-semibold px-4 py-2 rounded-lg capitalize transition-colors ${
-							filter === f ? "text-white" : "text-muted-foreground border border-border hover:text-foreground"
-						}`}
+						className={`text-[12px] font-semibold px-4 py-2 rounded-lg capitalize transition-colors ${filter === f ? "text-white" : "text-muted-foreground border border-border hover:text-foreground"
+							}`}
 						style={filter === f ? { background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" } : {}}
 					>
 						{f === "all"
 							? `All (${segments.length})`
 							: f === "linked"
-							? `Linked (${linkedCampaignsCount})`
-							: `${f.charAt(0).toUpperCase() + f.slice(1)} (${segments.filter((s) => {
+								? `Linked (${linkedCampaignsCount})`
+								: `${f.charAt(0).toUpperCase() + f.slice(1)} (${segments.filter((s) => {
 									const st = (s.status || "").toLowerCase();
 									return f === "active" ? st === "active" || st === "completed" : st === "paused" || st === "draft";
-							  }).length})`}
+								}).length})`}
 					</button>
 				))}
 			</div>
@@ -557,11 +620,10 @@ const Segments = () => {
 									key={l}
 									type="button"
 									onClick={() => setLogic(l)}
-									className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold border transition-all ${
-										logic === l
-											? "border-primary/40 bg-primary/10 text-primary"
-											: "border-border text-muted-foreground hover:text-foreground"
-									}`}
+									className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold border transition-all ${logic === l
+										? "border-primary/40 bg-primary/10 text-primary"
+										: "border-border text-muted-foreground hover:text-foreground"
+										}`}
 								>
 									{l === "AND" ? "AND — All must match" : "OR — Any must match"}
 								</button>
@@ -596,11 +658,10 @@ const Segments = () => {
 											<div className="flex items-center gap-2 my-1.5">
 												<div className="flex-1 h-px bg-border/50" />
 												<span
-													className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border ${
-														logic === "AND"
-															? "bg-primary/10 text-primary border-primary/25"
-															: "bg-amber-500/10 text-amber-400 border-amber-500/25"
-													}`}
+													className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border ${logic === "AND"
+														? "bg-primary/10 text-primary border-primary/25"
+														: "bg-amber-500/10 text-amber-400 border-amber-500/25"
+														}`}
 												>
 													{logic}
 												</span>

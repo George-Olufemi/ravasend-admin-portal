@@ -810,16 +810,22 @@ const Campaigns = () => {
 		return allRawCampaigns.filter((c) => !c.isDeleted && (c.status || "").toLowerCase() !== "deleted");
 	}, [allRawCampaigns]);
 
-	const deletedCampaigns = useMemo(() => {
-		return allRawCampaigns.filter((c) => Boolean(c.isDeleted) || (c.status || "").toLowerCase() === "deleted");
-	}, [allRawCampaigns]);
+	const { data: deletedCampaignsResponse, isLoading: isDeletedCampaignsLoading } = useQuery({
+		queryKey: ["deletedCampaigns"],
+		queryFn: campaignAPI.getDeletedCampaigns,
+	});
 
-	const displayedCampaigns = listTab === "active" ? liveCampaigns : deletedCampaigns;
+	const deletedCampaignsList: CampaignItem[] = useMemo(() => {
+		return deletedCampaignsResponse?.data || [];
+	}, [deletedCampaignsResponse]);
+
+	const displayedCampaigns = listTab === "active" ? liveCampaigns : deletedCampaignsList;
 
 	const createCampaignMutation = useMutation({
 		mutationFn: ({ id, data }: { id: string; data: any }) => campaignAPI.createCampaign(id, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["deletedCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaignSent"] });
@@ -843,6 +849,7 @@ const Campaigns = () => {
 		mutationFn: ({ id, data }: { id: string; data: any }) => campaignAPI.updateCampaign(id, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["deletedCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["campaign-detail"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
@@ -865,6 +872,7 @@ const Campaigns = () => {
 		mutationFn: campaignAPI.deleteCampaign,
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["deletedCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaignSent"] });
@@ -887,6 +895,7 @@ const Campaigns = () => {
 		mutationFn: (id: string) => campaignAPI.restoreCampaign(id),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["deletedCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
 			queryClient.invalidateQueries({ queryKey: ["totalCampaignSent"] });
@@ -2020,7 +2029,7 @@ const Campaigns = () => {
 										: "bg-secondary/60 text-muted-foreground hover:text-foreground border border-border"
 								}`}
 							>
-								<Archive size={13} /> Trash / Deleted ({deletedCampaigns.length})
+								<Archive size={13} /> Trash / Deleted ({deletedCampaignsList.length})
 							</button>
 						</div>
 					</div>
@@ -2040,7 +2049,7 @@ const Campaigns = () => {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/50">
-								{isCampaignsLoading ? (
+								{(listTab === "deleted" ? isDeletedCampaignsLoading : isCampaignsLoading) ? (
 									<tr>
 										<td colSpan={8} className="text-center py-12">
 											<div className="flex items-center justify-center gap-2 text-muted-foreground">
@@ -2064,7 +2073,9 @@ const Campaigns = () => {
 											onClick={() => setSelectedCampaignId(c._id)}
 										>
 											<td className="px-5 py-3.5">
-												<p className="text-[13px] font-semibold text-foreground">{c.campaignName}</p>
+												<p className="text-[13px] font-semibold text-foreground">
+													{c.campaignName || (c as any).title || `Campaign (${c._id.slice(-6)})`}
+												</p>
 												<p className="text-[10px] text-muted-foreground">
 													{c.recipients?.length || c.totalRecipients || 0} recipients · {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}
 												</p>

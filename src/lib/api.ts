@@ -663,6 +663,10 @@ export const campaignAPI = {
     const response = await api.delete(`/api/v1/campaign/deleteCampaign/${id}`);
     return response.data;
   },
+  getDeletedCampaigns: async () => {
+    const response = await api.get("/api/v1/campaign/getDeletedCampaigns");
+    return response.data;
+  },
   restoreCampaign: async (id: string): Promise<any> => {
     try {
       const response = await api.put(`/api/v1/campaign/restoreCampaign/${id}`);
@@ -759,10 +763,12 @@ export const segmentAPI = {
     const response = await api.get(`/api/v1/segment/get-segment/${id}`);
     return response.data;
   },
-  getSegmentUsers: async (segmentTerm?: string, level?: string | number): Promise<SegmentUsersResponse> => {
+  getSegmentUsers: async (segmentTerm?: string, segmentValue?: string | number): Promise<SegmentUsersResponse> => {
     const params = new URLSearchParams();
     if (segmentTerm) params.append("segmentTerm", segmentTerm);
-    if (level !== undefined && level !== null && level !== "") params.append("level", String(level));
+    if (segmentValue !== undefined && segmentValue !== null && segmentValue !== "") {
+      params.append("segmentValue", String(segmentValue));
+    }
     const queryString = params.toString();
     const response = await api.get(`/api/v1/segment/get-segment-users${queryString ? `?${queryString}` : ""}`);
     return response.data;
