@@ -1,5 +1,5 @@
 import axios from "axios";
-import { AnyARecord } from "dns";
+// import { AnyARecord } from "dns";
 
 // const BASE_URL = "https://reva-backend-zwra.onrender.com";
 const BASE_URL = import.meta.env.VITE_API_URL;
@@ -51,6 +51,9 @@ export interface User {
   referralCode: string;
   referredBy: string;
   lastLogin: string;
+  isFirstDeposit: boolean;
+  isFirstConversion: boolean;
+  ngn?: number;
 }
 
 export interface LoginResponse {
@@ -80,7 +83,8 @@ export interface Transaction {
   sessionId: string;
   destinationAccountNumber: string;
   destinationAccountName: string;
-  destionationBankName: string;
+  destinationBankName?: string;
+  destionationBankName?: string;
   reference: string;
   status: "Pending" | "Processing" | "Completed" | "FAILED" | "COMPLETED" | "Done" | "accepted" | "completed" | "SUCCESSFUL" | "pending" | "Pending" | "SUCCESS" | "done";
   fee: number;
@@ -162,6 +166,7 @@ export interface ReferralBonus {
   _id: string;
   userId: ReferralUser;
   amount: number;
+  referredCount?: number;
 }
 
 export interface ReferralBonusesResponse {
@@ -260,6 +265,8 @@ export interface UserLedgerEntry {
   balanceAfter: number;
   createdAt: string;
   updatedAt: string;
+  currency?: string;
+  cryptoAmount?: number;
   __v: number;
 }
 
@@ -268,14 +275,35 @@ export interface UserLedgerResponse {
   data: UserLedgerEntry[];
 }
 
+export interface AuditUser {
+  _id: string;
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  role?: string;
+}
+
 export interface AuditRecord {
   _id: string;
+  userId?: AuditUser | string;
   featureName: string;
+  action?: string;
   email: string;
+  status?: string;
+  description?: string;
+  endpoint?: string;
+  method?: string;
+  statusCode?: number;
   ipAddress: string;
   browser: string;
   device: string;
+  operatingSystem?: string;
   location: string;
+  resourceType?: string;
+  resourceId?: string;
+  warning?: string;
+  userAgent?: string;
+  metadata?: any[];
   createdAt: string;
   updatedAt: string;
   __v: number;
@@ -337,6 +365,10 @@ export const usersAPI = {
     const response = await api.get("/api/v1/user/getAllusers");
     return response.data;
   },
+  freezeUserAccount: async (userId: string): Promise<any> => {
+    const response = await api.post(`/api/v1/access-control/user-access-control?userId=${userId}`);
+    return response.data;
+  },
 };
 
 export const transactionAPI = {
@@ -349,7 +381,7 @@ export const transactionAPI = {
 export const promoCodesAPI = {
   getAll: async (): Promise<PromoCodesResponse> => {
     try {
-      const response = await apiNoAuth.get("/api/v1/promo/getPromo");
+      const response = await api.get("/api/v1/promo/getPromo");
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -359,7 +391,7 @@ export const promoCodesAPI = {
           data: [],
         };
       }
-      throw error; // let real errors bubble up
+      throw error;
     }
   },
 
@@ -546,3 +578,222 @@ export const adminAndRolesAPI = {
     return response.data;
   },
 };
+
+export interface CampaignItem {
+  _id: string;
+  campaignName: string;
+  subject: string;
+  message: string;
+  recipients: string[];
+  campaignType: string;
+  image?: string;
+  depositType?: string;
+  conversionReward?: string;
+  deliveryStrategy?: string;
+  deliveryTime?: string;
+  deliveryDate?: string;
+  deliveryTimezone?: string;
+  deliveryFrequency?: string;
+  deliveryFrequencyValue?: number;
+  deliveryFrequencyUnit?: string;
+  deliveryFrequencyTimezone?: string;
+  status: string;
+  totalRecipients?: number;
+  totalSent?: number;
+  totalDelivered?: number;
+  totalFailed?: number;
+  totalOpened?: number;
+  totalClicked?: number;
+  nextDeliveryAt?: string;
+  isDeleted?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  __v?: number;
+}
+
+export interface CampaignsResponse {
+  success: boolean;
+  message: string;
+  data: CampaignItem[];
+}
+
+export interface SingleCampaignResponse {
+  success: boolean;
+  message: string;
+  data: CampaignItem;
+}
+
+export interface CampaignCountResponse {
+  success: boolean;
+  message: string;
+  data: number;
+}
+
+export const campaignAPI = {
+  getAllCampaigns: async (): Promise<CampaignsResponse> => {
+    const response = await api.get("/api/v1/campaign/getCampaigns");
+    return response.data;
+  },
+  getTotalCampaigns: async (): Promise<CampaignCountResponse> => {
+    const response = await api.get("/api/v1/campaign/getTotalCampaigns");
+    return response.data;
+  },
+  getTotalActiveCampaigns: async (): Promise<CampaignCountResponse> => {
+    const response = await api.get("/api/v1/campaign/getTotalActiveCampaigns");
+    return response.data;
+  },
+  getTotalCampaignSent: async (): Promise<CampaignCountResponse> => {
+    const response = await api.get("/api/v1/campaign/getTotalCampaignSent");
+    return response.data;
+  },
+  createCampaign: async (id: string, data: any): Promise<SingleCampaignResponse> => {
+    const cleanId = id ? (id.startsWith("/") ? id : `/${id}`) : "";
+    const response = await api.post(`/api/v1/campaign/createCampaign${cleanId}`, data);
+    return response.data;
+  },
+  getCampaignById: async (id: string): Promise<SingleCampaignResponse> => {
+    const response = await api.get(`/api/v1/campaign/getCampaignById/${id}`);
+    return response.data;
+  },
+  updateCampaign: async (id: string, data: any): Promise<SingleCampaignResponse> => {
+    const response = await api.put(`/api/v1/campaign/updateCampaign/${id}`, data);
+    return response.data;
+  },
+  deleteCampaign: async (id: string): Promise<any> => {
+    const response = await api.delete(`/api/v1/campaign/deleteCampaign/${id}`);
+    return response.data;
+  },
+  getDeletedCampaigns: async () => {
+    const response = await api.get("/api/v1/campaign/getDeletedCampaigns");
+    return response.data;
+  },
+  restoreCampaign: async (id: string): Promise<any> => {
+    try {
+      const response = await api.put(`/api/v1/campaign/restoreCampaign/${id}`);
+      return response.data;
+    } catch (err: any) {
+      if (err?.response?.status === 404 || err?.response?.status === 405) {
+        const response = await api.post(`/api/v1/campaign/restoreCampaign/${id}`);
+        return response.data;
+      }
+      throw err;
+    }
+  },
+  sendBulkEmail: async (data: { subject: string; message: string; recipients: string[] }): Promise<any> => {
+    const response = await api.post("/api/v1/admin/send-bulk-email", data);
+    return response.data;
+  },
+  sendBulkPushNotification: async (data: { subject: string; message: string; recipients: string[] }): Promise<any> => {
+    const response = await api.post("/api/v1/admin/send-bulk-in-app", data);
+    return response.data;
+  },
+  getNewUsersNoFirstDeposit: async () => {
+    const response = await api.get("/api/v1/campaign/getNewUsersNoFirstDeposit");
+    return response.data;
+  },
+  getUserDepositedNeverTransacted: async () => {
+    const response = await api.get("/api/v1/campaign/getUserDepositedNeverTransacted");
+    return response.data;
+  },
+  getUserTransactWithZeroReferrals: async () => {
+    const response = await api.get("api/v1/campaign/getUserTransactWithZeroReferrals");
+    return response.data;
+  },
+  getLapsedUsersNoDepositGreaterThan7days: async () => {
+    const response = await api.get("/api/v1/campaign/getLapsedUsersNoDepositGreaterThan7days");
+    return response.data;
+  },
+  getChurnedActiveUsersWalletGreaterThan0InactiveGreaterThan14days: async () => {
+    const response = await api.get("/api/v1/campaign/getChurnedActiveUsersWalletGreaterThan0InactiveGreaterThan14days");
+    return response.data;
+  },
+}
+
+export interface SegmentItem {
+  _id: string;
+  segmentName: string;
+  description: string;
+  emails: string[];
+  totalUserTargeted: number;
+  status: string;
+  isLinkedToCampaign: boolean;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  __v?: number;
+}
+
+export interface SegmentsResponse {
+  success: boolean;
+  message: string;
+  count: number;
+  data: SegmentItem[];
+}
+
+export interface SingleSegmentResponse {
+  success: boolean;
+  message: string;
+  data: SegmentItem;
+}
+
+export interface SegmentUsersResponse {
+  success: boolean;
+  message: string;
+  total: number;
+  data: Array<{
+    _id: string;
+    email: string;
+    kycLevel?: number;
+    [key: string]: any;
+  }>;
+}
+
+export interface CreateSegmentPayload {
+  segmentName: string;
+  description: string;
+  emails: string[];
+}
+
+export const segmentAPI = {
+  getAllSegments: async (): Promise<SegmentsResponse> => {
+    const response = await api.get("/api/v1/segment/get-all-segments");
+    return response.data;
+  },
+  getSegmentById: async (id: string): Promise<SingleSegmentResponse> => {
+    const response = await api.get(`/api/v1/segment/get-segment/${id}`);
+    return response.data;
+  },
+  getSegmentUsers: async (segmentTerm?: string, segmentValue?: string | number): Promise<SegmentUsersResponse> => {
+    const params = new URLSearchParams();
+    if (segmentTerm) params.append("segmentTerm", segmentTerm);
+    if (segmentValue !== undefined && segmentValue !== null && segmentValue !== "") {
+      params.append("segmentValue", String(segmentValue));
+    }
+    const queryString = params.toString();
+    const response = await api.get(`/api/v1/segment/get-segment-users${queryString ? `?${queryString}` : ""}`);
+    return response.data;
+  },
+  createSegment: async (data: CreateSegmentPayload): Promise<SingleSegmentResponse> => {
+    const response = await api.post("/api/v1/segment/create-segment", data);
+    return response.data;
+  },
+  updateSegment: async (id: string, data: CreateSegmentPayload): Promise<SingleSegmentResponse> => {
+    const response = await api.put(`/api/v1/segment/update-segment/${id}`, data);
+    return response.data;
+  },
+  deleteSegment: async (id: string): Promise<any> => {
+    const response = await api.delete(`/api/v1/segment/delete-segment/${id}`);
+    return response.data;
+  },
+};
+
+export const auditAPI = {
+  getAllAudit: async () => {
+    const response = await api.get("/api/v1/auditlogs/audit-logs");
+    return response.data;
+  },
+  getAuditByQuery: async (query: string) => {
+    const response = await api.get("/api/v1/auditlogs/audit-logs?search=" + query);
+    return response.data;
+  }
+}

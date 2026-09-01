@@ -57,7 +57,7 @@ const Login = () => {
       <Card className="w-full max-w-md relative z-10 shadow-card border-border/50 bg-gradient-card backdrop-blur-sm">
         <CardHeader className="text-center space-y-2">
           <div className="flex items-center justify-center mb-4">
-            <div className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+            <div className="text-3xl font-bold bg-clip-text text-transparent">
               <img className="w-16 h-16" src={logo} alt="Reva Logo" />
             </div>
           </div>
@@ -112,7 +112,7 @@ const Login = () => {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+              className="w-full hover:opacity-90 transition-opacity"
               disabled={loginMutation.isPending}
             >
               {loginMutation.isPending ? (

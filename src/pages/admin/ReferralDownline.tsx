@@ -1,958 +1,386 @@
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { referralAPI } from "@/lib/api";
-import { formatDistanceToNow } from "date-fns";
-import { useState, useEffect } from "react";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Button } from "@/components/ui/button";
 import {
   Search,
-  X,
+  GitMerge,
+  ChevronRight,
+  Loader2,
   Users,
   Wallet,
   Lock,
-  Unlock,
   Gift,
-  Award,
-  Copy,
-  User,
-  Mail,
-  Hash,
   DollarSign,
   Bitcoin,
+  Mail,
+  Copy,
+  CheckCircle2,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { referralAPI } from "@/lib/api";
 
-// --- Types ---
-interface ReferralDownlineUser {
-  id: string;
-  fullName: string;
+// ── Types ──
+export interface ReferralUserNode {
+  name: string;
   email: string;
-  referralCode: string;
+  joined: string;
+  status: "active" | "inactive" | "pending";
+  volume: number;
+  txns: number;
 }
 
-interface WalletUser {
-  _id: string;
-  fullName: string;
-  email: string;
-  nairaWallet: number;
-  dollarWallet: number;
-  cryptoWallet: number;
+export interface ReferralNode {
+  code: string;
+  user: ReferralUserNode;
+  referrals: ReferralNode[];
 }
 
-interface ReferralDownlineWallet {
-  _id: string;
-  userId: WalletUser;
-  amount: number;
-  status: string;
-  lockedAmount: number;
-  withdrawn: boolean;
-  bonus30Paid: boolean;
-  bonus100Paid: boolean;
-  bonus500Paid: boolean;
-  bonus1000Paid: boolean;
-  billPaymentBonus: boolean;
-  createdAt: string;
-  updatedAt: string;
+// ── Helpers ──
+function countDownline(node: ReferralNode): number {
+  return node.referrals.reduce((acc, child) => acc + 1 + countDownline(child), 0);
 }
 
-interface ReferralDownlineInvitedUser {
-  _id: string;
-  userId: {
-    _id: string;
-    fullName: string;
-    email: string;
-    phoneNumber: string;
+function fmtCompact(num: number): string {
+  if (num >= 1_000_000) return `₦${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `₦${(num / 1_000).toFixed(1)}K`;
+  return `₦${num.toLocaleString()}`;
+}
+
+function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+  const initials = name
+    ? name
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "??";
+  return (
+    <div
+      className={`${
+        size === "sm" ? "size-7 text-[10px]" : "size-9 text-[11px]"
+      } rounded-full flex items-center justify-center font-bold text-white shrink-0`}
+      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const isAct = status?.toLowerCase() === "active" || status?.toLowerCase() === "completed" || status?.toLowerCase() === "done";
+  return (
+    <span
+      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+        isAct
+          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+          : "bg-zinc-500/15 text-zinc-400 border-zinc-500/25"
+      }`}
+    >
+      {isAct ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+function PurpleBtn({
+  children,
+  onClick,
+  className = "",
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-[12px] text-white shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-6">
+      <h1 className="text-xl font-bold text-foreground">{title}</h1>
+      {subtitle && <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>}
+    </div>
+  );
+}
+
+// ── Node Row Component ──
+function ReferralNodeRow({ node, depth = 0 }: { node: ReferralNode; depth?: number }) {
+  const [expanded, setExpanded] = useState(depth === 0);
+  const hasChildren = node.referrals.length > 0;
+  const totalDownline = countDownline(node);
+
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all ${
+          depth === 0
+            ? "bg-primary/8 border border-primary/20 mb-1"
+            : "hover:bg-white/[0.025] border border-transparent hover:border-border"
+        }`}
+        style={{ marginLeft: depth * 24 }}
+        onClick={() => hasChildren && setExpanded((e) => !e)}
+      >
+        {hasChildren ? (
+          <div className="size-5 rounded-md border border-border flex items-center justify-center text-muted-foreground shrink-0">
+            <ChevronRight size={11} className={`transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} />
+          </div>
+        ) : (
+          <div className="size-5 shrink-0" />
+        )}
+        <Avatar name={node.user.name} size="sm" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className={`font-semibold text-foreground ${depth === 0 ? "text-[13px]" : "text-[12px]"}`}>{node.user.name}</p>
+            <code className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">{node.code}</code>
+            <StatusBadge status={node.user.status} />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {node.user.email} · Joined {node.user.joined}
+          </p>
+        </div>
+        <div className="flex items-center gap-5 shrink-0">
+          <div className="text-right">
+            <p className="text-[12px] font-mono font-bold text-foreground">{fmtCompact(node.user.volume)}</p>
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">volume</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[12px] font-mono font-bold text-foreground">{node.user.txns}</p>
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">txns</p>
+          </div>
+          {hasChildren && (
+            <div className="text-right min-w-[36px]">
+              <p className="text-[12px] font-mono font-bold text-primary">{totalDownline}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">downline</p>
+            </div>
+          )}
+        </div>
+      </div>
+      {expanded && node.referrals.map((child) => <ReferralNodeRow key={child.code} node={child} depth={depth + 1} />)}
+    </div>
+  );
+}
+
+// ── Helper to convert API Response to ReferralNode tree ──
+function buildTreeFromApi(apiData: any): ReferralNode {
+  const u = apiData.user;
+  const w = apiData.wallet;
+  const invitedList = apiData.invitedUsers || [];
+  const txnsList = apiData.transactions || [];
+
+  const totalNairaVal = w?.userId?.nairaWallet || w?.amount || 0;
+  const totalTxnCount = txnsList.length;
+
+  const children: ReferralNode[] = invitedList.map((inv: any) => {
+    const invUser = inv.userId || {};
+    return {
+      code: (invUser._id || inv._id || "").slice(-6).toUpperCase(),
+      user: {
+        name: invUser.fullName || "Invited User",
+        email: invUser.email || "-",
+        joined: inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "Recently",
+        status: invUser.status || "pending",
+        volume: inv.lockedAmount || inv.amount || 0,
+        txns: inv.amount > 0 ? 1 : 0,
+      },
+      referrals: [],
+    };
+  });
+
+  return {
+    code: u?.referralCode || u?.username || "REF-CODE",
+    user: {
+      name: u?.fullName || "User",
+      email: u?.email || "-",
+      joined: u?.createdAt ? new Date(u.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "Recently",
+      status: u?.status || "pending",
+      volume: totalNairaVal,
+      txns: totalTxnCount,
+    },
+    referrals: children,
   };
-  referredBy: string;
-  amount: number;
-  lockedAmount: number;
-  locked: number;
-  title: string;
-  description: string;
-  status: string;
-  billPaymentBonus: boolean;
-  bonus30Paid: boolean;
-  bonus100Paid: boolean;
-  bonus500Paid: boolean;
-  bonus1000Paid: boolean;
-  withdrawn: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
 
-interface ReferralDownlineTransaction {
-  _id: string;
-  userId: string;
-  source: string;
-  amount: number;
-  currency: string;
-  reference: string;
-  status: string;
-  fee?: number;
-  netAmount?: number;
-  createdAt: string;
-  updatedAt: string;
-  cards?: any[];
-  metadata?: any;
-}
-
-interface ReferralDownlineData {
-  success: boolean;
-  message: string;
-  data: {
-    user: ReferralDownlineUser;
-    wallet: ReferralDownlineWallet;
-    totalInvited: number;
-    invitedUsers: ReferralDownlineInvitedUser[];
-    referralItems: Array<{
-      _id: string;
-      userId: string;
-      count: number;
-      emails: string[];
-      createdAt: string;
-      updatedAt: string;
-    }>;
-    referralBonuses: Array<{
-      _id: string;
-      userId: string;
-      amount: number;
-    }>;
-    transactions: ReferralDownlineTransaction[];
-  };
-}
-
-// --- Component ---
 const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [query, setQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
+  const [searched, setSearched] = useState(false);
 
   const getSearchParams = (search: string) => {
     if (!search) return {};
     if (search.includes("@")) return { email: search };
-    if (/^[A-Z0-9]{6}$/.test(search)) return { referralCode: search };
+    if (/^[A-Z0-9]{6}$/i.test(search)) return { referralCode: search };
     return { username: search };
   };
 
   const {
-    data: referralData,
+    data: apiResponse,
     isLoading,
-    error,
-    refetch,
+    isError,
   } = useQuery({
     queryKey: ["referralDownline", activeSearch],
-    queryFn: () =>
-      referralAPI.getAllReferralDownline(getSearchParams(activeSearch)),
+    queryFn: () => referralAPI.getAllReferralDownline(getSearchParams(activeSearch)),
     enabled: !!activeSearch,
     staleTime: 2 * 60 * 1000,
-    retry: 1,
   });
 
-  const data = referralData?.data as ReferralDownlineData["data"] | undefined;
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      setActiveSearch(searchTerm.trim());
-      setPage(1);
-    }
+  const handleSearch = (qText?: string) => {
+    const searchTerm = (qText !== undefined ? qText : query).trim();
+    if (!searchTerm) return;
+    setSearched(true);
+    setActiveSearch(searchTerm);
   };
 
-  const clearSearch = () => {
-    setSearchTerm("");
-    setActiveSearch("");
-    setPage(1);
-  };
+  // Build result tree from API data only
+  let resultTree: ReferralNode | null = null;
+  if (apiResponse?.data?.user) {
+    resultTree = buildTreeFromApi(apiResponse.data);
+  }
 
-  const formatCurrency = (amount: number) => {
-    if (amount === undefined || amount === null) return "₦0.00";
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-    }).format(amount);
-  };
-
-  const getInitials = (name: string) => {
-    if (!name) return "?";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  const getStatusColor = (status: string) => {
-    if (!status) return "bg-gray-500/20 text-gray-400";
-    const statusMap: Record<string, string> = {
-      COMPLETED: "bg-green-500/20 text-green-400",
-      SUCCESS: "bg-green-500/20 text-green-400",
-      SUCCESSFUL: "bg-green-500/20 text-green-400",
-      Done: "bg-green-500/20 text-green-400",
-      accepted: "bg-green-500/20 text-green-400",
-      completed: "bg-green-500/20 text-green-400",
-      FAILED: "bg-red-500/20 text-red-400",
-      FAIL: "bg-red-500/20 text-red-400",
-      Processing: "bg-yellow-500/20 text-yellow-400",
-      pending: "bg-yellow-500/20 text-yellow-400",
-      locked: "bg-orange-500/20 text-orange-400",
-      initiated: "bg-blue-500/20 text-blue-400",
-    };
-    return statusMap[status] || "bg-gray-500/20 text-gray-400";
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
-  const invitedUsers = data?.invitedUsers || [];
-  const totalPages = Math.ceil(invitedUsers.length / PAGE_SIZE);
-  const startIndex = (page - 1) * PAGE_SIZE;
-  const paginatedInvitedUsers = invitedUsers.slice(
-    startIndex,
-    startIndex + PAGE_SIZE,
-  );
-
-  useEffect(() => {
-    if (page > totalPages && totalPages > 0) {
-      setPage(totalPages);
-    } else if (totalPages === 0) {
-      setPage(1);
-    }
-  }, [page, totalPages]);
-
-  const safeData = (value: any, fallback: any = "-") => {
-    return value !== undefined && value !== null && value !== ""
-      ? value
-      : fallback;
-  };
-
-  // --- FIX: restrict helper to numeric fields only ---
-  type WalletNumericField = "nairaWallet" | "dollarWallet" | "cryptoWallet";
-  const getWalletBalance = (field: WalletNumericField): number => {
-    return data?.wallet?.userId?.[field] ?? 0;
-  };
+  const rawApiData = apiResponse?.data;
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {!isTab ? (
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Referral Downline
-            </h1>
-            <p className="text-muted-foreground">
-              Search for a user by username, email, or referral code to view their
-              downline
-            </p>
-          </div>
-        ) : (
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">
-              Search User Downline
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Enter username, email, or referral code to view their downline
-            </p>
-          </div>
-        )}
+    <div className={`flex-1 overflow-y-auto ${isTab ? "" : ""}`}>
+      {!isTab && (
+        <PageHeader
+          title="Downline Explorer"
+          subtitle="Follow the full referral chain for any user. Search by referral code, name, or email."
+        />
+      )}
 
-        <div className="flex items-center gap-3">
-          <form
-            onSubmit={handleSearch}
-            className="flex items-center gap-2 w-full sm:w-auto"
-          >
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by username, email, or referral code..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-8"
-                disabled={isLoading}
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                  disabled={isLoading}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <Button type="submit" disabled={!searchTerm.trim() || isLoading}>
-              {isLoading ? "Searching..." : "Search"}
-            </Button>
-          </form>
+      {/* Search Bar Box */}
+      <div className="bg-card border border-border rounded-xl p-4 sm:p-6 mb-6">
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Search Referral Chain</p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="w-full bg-secondary border border-border rounded-xl pl-10 pr-4 py-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+              placeholder="Enter referral code (e.g. 38B753), name, or email…"
+            />
+          </div>
+          <PurpleBtn onClick={() => handleSearch()} disabled={isLoading} className="justify-center">
+            {isLoading ? <Loader2 className="animate-spin" size={13} /> : <GitMerge size={13} />} Explore Chain
+          </PurpleBtn>
         </div>
       </div>
 
-      {!activeSearch ? (
-        <Card className="bg-gradient-card border-border/50 shadow-card">
-          <CardContent className="py-12">
-            <div className="text-center">
-              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Search for a user</h3>
-              <p className="text-muted-foreground">
-                Enter a username, email address, or referral code to view their
-                referral downline
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <LoadingSpinner size="lg" />
+      {isLoading && (
+        <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground text-[13px]">
+          <Loader2 className="animate-spin inline-block mb-3 text-primary" size={24} />
+          <p className="font-semibold text-foreground">Fetching referral downline data...</p>
         </div>
-      ) : error ? (
-        <Card className="bg-gradient-card border-border/50">
-          <CardContent className="pt-6">
-            <div className="text-center text-destructive">
-              Error loading referral data:{" "}
-              {(error as any)?.message || "Unknown error"}
-            </div>
-            <div className="text-center mt-4">
-              <Button onClick={() => refetch()} variant="outline">
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : !data || !data.user ? (
-        <Card className="bg-gradient-card border-border/50">
-          <CardContent className="py-12">
-            <div className="text-center">
-              <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">
-                No user found for "{activeSearch}"
+      )}
+
+      {searched && !isLoading && resultTree && (
+        <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <p className="text-[13px] font-bold text-foreground">
+                Downline for <span className="text-primary font-mono">{resultTree.code}</span>
               </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Try searching with a different username, email, or referral code
+              <p className="text-[11px] text-muted-foreground">
+                {countDownline(resultTree)} users in total downline · click any row to expand
               </p>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Naira Wallet
-                    </p>
-                    <p className="text-2xl font-bold text-emerald-400">
-                      {formatCurrency(getWalletBalance("nairaWallet"))}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-emerald-500/20">
-                    <Wallet className="h-6 w-6 text-emerald-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Dollar Wallet
-                    </p>
-                    <p className="text-2xl font-bold text-cyan-400">
-                      ${getWalletBalance("dollarWallet").toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-cyan-500/20">
-                    <DollarSign className="h-6 w-6 text-cyan-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Crypto Wallet
-                    </p>
-                    <p className="text-2xl font-bold text-purple-400">
-                      {getWalletBalance("cryptoWallet").toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-purple-500/20">
-                    <Bitcoin className="h-6 w-6 text-purple-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Referral Bonus
-                    </p>
-                    <p className="text-2xl font-bold text-green-400">
-                      {formatCurrency(data.wallet?.amount || 0)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-green-500/20">
-                    <Gift className="h-6 w-6 text-green-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Locked Amount
-                    </p>
-                    <p className="text-2xl font-bold text-orange-400">
-                      {formatCurrency(data.wallet?.lockedAmount || 0)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-orange-500/20">
-                    <Lock className="h-6 w-6 text-orange-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-emerald-500 inline-block" /> Active
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-red-500 inline-block" /> Inactive
+              </span>
+            </div>
           </div>
 
-          {/* User Profile Card */}
-          <Card className="bg-gradient-card border-border/50 shadow-card">
-            <CardHeader>
-              <CardTitle>User Information</CardTitle>
-              <CardDescription>
-                Detailed information about the referrer
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col md:flex-row md:items-center gap-6">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16">
-                    <AvatarFallback className="bg-primary/20 text-primary text-lg">
-                      {getInitials(data.user?.fullName || "")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="text-xl font-semibold">
-                      {safeData(data.user?.fullName, "Unknown User")}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      <Mail className="inline h-3 w-3 mr-1" />
-                      {safeData(data.user?.email, "No email")}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Referral Code:
-                      </span>
-                      <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded-md">
-                        {safeData(data.user?.referralCode, "N/A")}
-                      </span>
-                      {data.user?.referralCode && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() =>
-                                  copyToClipboard(data.user.referralCode)
-                                }
-                                className="text-muted-foreground hover:text-foreground"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Copy referral code</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 ml-auto">
-                  <Badge
-                    className={
-                      data.wallet?.status === "locked"
-                        ? "bg-orange-500/20 text-orange-400"
-                        : "bg-green-500/20 text-green-400"
-                    }
-                  >
-                    {data.wallet?.status === "locked" ? (
-                      <Lock className="h-3 w-3 mr-1" />
-                    ) : (
-                      <Unlock className="h-3 w-3 mr-1" />
-                    )}
-                    {safeData(data.wallet?.status, "Unknown")
-                      .charAt(0)
-                      .toUpperCase() +
-                      safeData(data.wallet?.status, "Unknown").slice(1)}
-                  </Badge>
-                  <Badge variant="outline">
-                    <Hash className="h-3 w-3 mr-1" />
-                    ID: {safeData(data.user?.id, "").slice(-8) || "N/A"}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Wallet breakdown */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 pt-4 border-t border-border">
-                <div>
-                  <p className="text-xs text-muted-foreground">Naira Wallet</p>
-                  <p className="text-lg font-semibold text-emerald-400">
-                    {formatCurrency(getWalletBalance("nairaWallet"))}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Dollar Wallet</p>
-                  <p className="text-lg font-semibold text-cyan-400">
-                    ${getWalletBalance("dollarWallet").toFixed(2)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Crypto Wallet</p>
-                  <p className="text-lg font-semibold text-purple-400">
-                    {getWalletBalance("cryptoWallet").toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
-                <div>
-                  <p className="text-xs text-muted-foreground">Bonus 30</p>
-                  <Badge
-                    variant={data.wallet?.bonus30Paid ? "default" : "outline"}
-                    className={
-                      data.wallet?.bonus30Paid
-                        ? "bg-green-500/20 text-green-400"
-                        : ""
-                    }
-                  >
-                    {data.wallet?.bonus30Paid ? "✅ Paid" : "⏳ Pending"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Bonus 100</p>
-                  <Badge
-                    variant={data.wallet?.bonus100Paid ? "default" : "outline"}
-                    className={
-                      data.wallet?.bonus100Paid
-                        ? "bg-green-500/20 text-green-400"
-                        : ""
-                    }
-                  >
-                    {data.wallet?.bonus100Paid ? "✅ Paid" : "⏳ Pending"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Bonus 500</p>
-                  <Badge
-                    variant={data.wallet?.bonus500Paid ? "default" : "outline"}
-                    className={
-                      data.wallet?.bonus500Paid
-                        ? "bg-green-500/20 text-green-400"
-                        : ""
-                    }
-                  >
-                    {data.wallet?.bonus500Paid ? "✅ Paid" : "⏳ Pending"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Bonus 1000</p>
-                  <Badge
-                    variant={data.wallet?.bonus1000Paid ? "default" : "outline"}
-                    className={
-                      data.wallet?.bonus1000Paid
-                        ? "bg-green-500/20 text-green-400"
-                        : ""
-                    }
-                  >
-                    {data.wallet?.bonus1000Paid ? "✅ Paid" : "⏳ Pending"}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Referral Items and Bonuses */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Gift className="h-5 w-5 text-blue-400" />
-                  Referral Items
-                </CardTitle>
-                <CardDescription>
-                  Groups of emails referred by this user
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-64 overflow-y-auto">
-                {(data.referralItems || []).length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    No referral items found
-                  </p>
-                ) : (
-                  (data.referralItems || []).map((item) => (
-                    <div
-                      key={item._id}
-                      className="bg-muted/30 rounded-lg p-4 mb-3 last:mb-0"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">
-                          Count: {safeData(item.count, 0)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {item.createdAt
-                            ? formatDistanceToNow(new Date(item.createdAt), {
-                              addSuffix: true,
-                            })
-                            : "Unknown date"}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {(item.emails || []).map((email, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="outline"
-                            className="text-xs"
-                          >
-                            {email || "Unknown email"}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-yellow-400" />
-                  Referral Bonuses
-                </CardTitle>
-                <CardDescription>Bonuses earned from referrals</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {(data.referralBonuses || []).length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    No referral bonuses found
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {(data.referralBonuses || []).map((bonus) => (
-                      <div
-                        key={bonus._id}
-                        className="flex items-center justify-between bg-yellow-500/10 rounded-lg px-4 py-2"
-                      >
-                        <span className="text-sm text-muted-foreground">
-                          Bonus #{safeData(bonus._id, "").slice(-6) || "N/A"}
-                        </span>
-                        <span className="font-semibold text-yellow-400">
-                          {formatCurrency(bonus.amount || 0)}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between border-t border-border pt-2 mt-2">
-                      <span className="font-medium">Total</span>
-                      <span className="font-bold text-yellow-400">
-                        {formatCurrency(
-                          (data.referralBonuses || []).reduce(
-                            (sum, b) => sum + (b?.amount || 0),
-                            0,
-                          ),
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* Interactive Tree View */}
+          <div className="bg-card border border-border rounded-xl p-3 sm:p-4 space-y-1 mb-6 overflow-x-auto">
+            <ReferralNodeRow node={resultTree} depth={0} />
           </div>
 
-          {/* Invited Users Table */}
-          <Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-400" />
-                Invited Users
-              </CardTitle>
-              <CardDescription>
-                {(data.invitedUsers || []).length === 0
-                  ? "No users have been invited yet"
-                  : `Total of ${data.invitedUsers.length} users invited by ${safeData(data.user?.fullName, "this user")}`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-hidden p-0 md:p-6">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30">
-                      <TableHead>User</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone Number</TableHead>
-                      <TableHead>Bonus Amount</TableHead>
-                      <TableHead>Locked Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Registered</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedInvitedUsers.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center py-8 text-muted-foreground"
-                        >
-                          No invited users found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedInvitedUsers.map((invitedUser) => (
-                        <TableRow
-                          key={invitedUser._id}
-                          className="hover:bg-muted/20"
-                        >
-                          <TableCell>
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-primary/20 text-primary">
-                                  {getInitials(
-                                    invitedUser.userId?.fullName || "",
-                                  )}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="font-medium">
-                                  {safeData(
-                                    invitedUser.userId?.fullName,
-                                    "Unknown",
-                                  )}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  ID:{" "}
-                                  {safeData(invitedUser.userId?._id, "").slice(
-                                    -6,
-                                  ) || "N/A"}
-                                </div>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {safeData(invitedUser.userId?.email, "No email")}
-                          </TableCell>
-                          <TableCell>
-                            {safeData(
-                              invitedUser.userId?.phoneNumber,
-                              "No phone",
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium text-green-400">
-                              {formatCurrency(invitedUser.amount || 0)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {(invitedUser.lockedAmount || 0) > 0 ? (
-                              <div className="font-medium text-orange-400">
-                                {formatCurrency(invitedUser.lockedAmount || 0)}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              className={
-                                invitedUser.status === "locked"
-                                  ? "bg-orange-500/20 text-orange-400"
-                                  : "bg-green-500/20 text-green-400"
-                              }
-                            >
-                              {safeData(invitedUser.status, "Unknown")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              {invitedUser.createdAt
-                                ? formatDistanceToNow(
-                                  new Date(invitedUser.createdAt),
-                                  { addSuffix: true },
-                                )
-                                : "Unknown"}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+          {/* Metric Summary Cards */}
+          {(() => {
+            const allChildren = resultTree.referrals.flatMap(r => [r, ...r.referrals]);
+            const activeCount = allChildren.filter(r => r.user.status === "active").length;
+            const totalVolume = allChildren.reduce((a, r) => a + r.user.volume, 0);
+            const totalTxns = allChildren.reduce((a, r) => a + r.user.txns, 0);
+            
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                {[
+                  { label: "Total Downline", value: String(countDownline(resultTree)) },
+                  { label: "Active in Downline", value: String(activeCount) },
+                  { label: "Downline Volume", value: fmtCompact(totalVolume) },
+                  { label: "Downline Txns", value: String(totalTxns) },
+                ].map((m) => (
+                  <div key={m.label} className="bg-card border border-border rounded-xl p-4">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{m.label}</p>
+                    <p className="text-[20px] font-bold text-foreground">{m.value}</p>
+                  </div>
+                ))}
               </div>
-              {(data.invitedUsers || []).length > 0 && totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                          className={
-                            page === 1
-                              ? "pointer-events-none opacity-50"
-                              : "cursor-pointer"
-                          }
-                        />
-                      </PaginationItem>
+            );
+          })()}
 
-                      {Array.from({ length: Math.min(totalPages, 5) }).map(
-                        (_, index) => {
-                          let pageNumber = index + 1;
-                          if (totalPages > 5) {
-                            if (page <= 3) {
-                              pageNumber = index + 1;
-                            } else if (page >= totalPages - 2) {
-                              pageNumber = totalPages - 4 + index;
-                            } else {
-                              pageNumber = page - 2 + index;
-                            }
-                          }
-                          return (
-                            <PaginationItem key={pageNumber}>
-                              <PaginationLink
-                                className="cursor-pointer"
-                                isActive={page === pageNumber}
-                                onClick={() => setPage(pageNumber)}
-                              >
-                                {pageNumber}
-                              </PaginationLink>
-                            </PaginationItem>
-                          );
-                        },
-                      )}
-
-                      {totalPages > 5 && page < totalPages - 2 && (
-                        <>
-                          <PaginationItem>
-                            <span className="px-2">...</span>
-                          </PaginationItem>
-                          <PaginationItem>
-                            <PaginationLink
-                              className="cursor-pointer"
-                              onClick={() => setPage(totalPages)}
-                            >
-                              {totalPages}
-                            </PaginationLink>
-                          </PaginationItem>
-                        </>
-                      )}
-
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() =>
-                            setPage((p) => Math.min(p + 1, totalPages))
-                          }
-                          className={
-                            page === totalPages
-                              ? "pointer-events-none opacity-50"
-                              : "cursor-pointer"
-                          }
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Recent Transactions */}
-          {(data.transactions || []).length > 0 && (
-            <Card className="bg-gradient-card border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle>Recent Transactions</CardTitle>
-                <CardDescription>
-                  Latest transactions for this user
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="max-h-64 overflow-y-auto">
-                <div className="space-y-2">
-                  {(data.transactions || []).slice(0, 10).map((tx) => (
-                    <div
-                      key={tx._id}
-                      className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">
-                          {safeData(tx.source, "Unknown")}
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {safeData(tx.reference, "").slice(0, 16) || "N/A"}...
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {tx.createdAt
-                            ? formatDistanceToNow(new Date(tx.createdAt), {
-                              addSuffix: true,
-                            })
-                            : "Unknown"}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0 ml-3">
-                        <div className="text-sm font-semibold">
-                          {formatCurrency(tx.amount || 0)}
-                        </div>
-                        <Badge className={getStatusColor(tx.status)}>
-                          {safeData(tx.status, "Unknown")}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Detailed Wallet & User Info from API */}
+          {rawApiData && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Naira Wallet</p>
+                <p className="text-[20px] font-mono font-bold text-emerald-400">
+                  ₦{(rawApiData.wallet?.userId?.nairaWallet || 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Dollar Wallet</p>
+                <p className="text-[20px] font-mono font-bold text-cyan-400">
+                  ${(rawApiData.wallet?.userId?.dollarWallet || 0).toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-5">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Referral Bonus</p>
+                <p className="text-[20px] font-mono font-bold text-violet-400">
+                  ₦{(rawApiData.wallet?.amount || 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
           )}
-        </>
+        </div>
+      )}
+
+      {searched && !isLoading && !resultTree && (
+        <div className="bg-card border border-border rounded-xl p-12 text-center">
+          <div className="size-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
+            <GitMerge size={20} className="text-muted-foreground" />
+          </div>
+          <p className="text-[14px] font-bold text-foreground mb-1">No results found</p>
+          <p className="text-[12px] text-muted-foreground">
+            No referral chain found for <span className="font-mono text-foreground">"{query || activeSearch}"</span>. Try a different code, name, or email.
+          </p>
+        </div>
+      )}
+
+      {!searched && (
+        <div className="bg-card border border-border rounded-xl p-12 text-center">
+          <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <GitMerge size={20} className="text-primary" />
+          </div>
+          <p className="text-[14px] font-bold text-foreground mb-1">Search to explore a referral chain</p>
+          <p className="text-[12px] text-muted-foreground max-w-sm mx-auto">
+            Enter a referral code, user name, or email to see the full downline tree with volume, transaction count, and status at every level.
+          </p>
+        </div>
       )}
     </div>
   );

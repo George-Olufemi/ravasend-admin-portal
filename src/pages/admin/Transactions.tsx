@@ -1,414 +1,534 @@
-"use client";
-
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { transactionAPI } from "@/lib/api";
-import { Transaction } from "@/lib/api";
-import { formatDistanceToNow, format } from "date-fns";
+import { Download, Search, Hash, Loader2 } from "lucide-react";
+import { transactionAPI, Transaction } from "@/lib/api";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+
+function fmtN(num: number) {
+  return new Intl.NumberFormat().format(num || 0);
+}
+
+function ngn(num: number) {
+  return "₦" + fmtN(num);
+}
+
+function PageHeader({
+  title,
+  subtitle,
+  search,
+  onSearch,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  search?: string;
+  onSearch?: (v: string) => void;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{title}</h1>
+        {subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
+      </div>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+        {search !== undefined && onSearch && (
+          <div className="relative w-full sm:w-72">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder={search}
+              onChange={(e) => onSearch(e.target.value)}
+              className="w-full bg-secondary border border-border rounded-xl pl-9 pr-3 py-2.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+            />
+          </div>
+        )}
+        {action}
+      </div>
+    </div>
+  );
+}
+
+function PurpleBtn({
+  children,
+  onClick,
+  className = "",
+  size = "md",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <Button
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-white/[0.025] border border-border rounded-xl p-5">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-[22px] font-bold text-foreground leading-none mt-1">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function TableWrap({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white/[0.025] border border-border rounded-xl overflow-x-auto w-full mb-4">
+      <table className="w-full text-left border-collapse">{children}</table>
+    </div>
+  );
+}
+
+function THead({ cols }: { cols: string[] }) {
+  return (
+    <thead>
+      <tr className="border-b border-border bg-white/[0.02]">
+        {cols.map((c, i) => (
+          <th key={i} className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+            {c}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function Pagination({ page, total, perPage, onChange }: { page: number; total: number; perPage: number; onChange: (p: number) => void }) {
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-[12px] text-muted-foreground">
+      <span>Showing {total === 0 ? 0 : Math.min((page - 1) * perPage + 1, total)} - {Math.min(page * perPage, total)} of {total}</span>
+      <div className="flex items-center gap-2">
+        <button disabled={page <= 1} onClick={() => onChange(page - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Previous</button>
+        <span>Page {page} of {totalPages}</span>
+        <button disabled={page >= totalPages} onClick={() => onChange(page + 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Next</button>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  const norm = (status || "").toUpperCase();
+  if (["COMPLETED", "SUCCESS", "SUCCESSFUL", "DONE", "ACCEPTED"].includes(norm)) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
+        {status}
+      </span>
+    );
+  }
+  if (["FAILED", "REJECTED", "CANCELLED"].includes(norm)) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-500/15 text-red-400 border border-red-500/20 uppercase">
+        {status}
+      </span>
+    );
+  }
+  if (["PENDING", "PROCESSING"].includes(norm)) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 uppercase">
+        {status}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-zinc-500/15 text-zinc-400 border border-zinc-500/20 uppercase">
+      {status || "UNKNOWN"}
+    </span>
+  );
+}
+
+function getTxnType(trx: Transaction): string {
+  const src = (trx.source || "").toLowerCase();
+  const curr = (trx.currency || "").toLowerCase();
+
+  if (src.includes("crypto swap") || curr.includes("to ngn") || curr.includes("to usd")) {
+    return "Crypto Swap";
+  }
+  if (src.includes("forex") || src.includes("monirate") || curr.includes("-") || curr.includes("usd to ngn")) {
+    return "Cross-border";
+  }
+  if (src.includes("internal transfer") || src.includes("in-trf")) {
+    return "Internal Transfer";
+  }
+  if (src.includes("bill") || src.includes("airtime") || src.includes("data")) {
+    return "Bill Payment";
+  }
+  if (src.includes("bank transfer")) {
+    if (trx.destinationAccountNumber || trx.destinationAccountName) {
+      return "Bank Withdrawal";
+    }
+    return "Fiat Deposit";
+  }
+  if (src.includes("transfer received") || src.includes("wallet funding") || src.includes("convert paymentlink") || src.includes("deposit")) {
+    return "Fiat Deposit";
+  }
+  if (src.includes("crypto deposit") || curr.includes("btc") || curr.includes("eth") || curr.includes("usdt") || curr.includes("usdc") || curr.includes("sol")) {
+    return "Crypto Deposit";
+  }
+  if (src.includes("fee")) {
+    return "Fee";
+  }
+  return trx.source || "Transaction";
+}
 
 const Transactions = () => {
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const [pg, setPg] = useState(1);
+  const [tab, setTab] = useState("All");
+  const [search, setSearch] = useState("");
+  const perPage = 8;
 
-  const {
-    data: transactionsData,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: transactionsData, isLoading } = useQuery({
     queryKey: ["transactions"],
     queryFn: transactionAPI.getAll,
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+  const transactions: Transaction[] = useMemo(() => transactionsData?.data || [], [transactionsData]);
 
-  if (error) {
-    return (
-      <Card>
-        <CardContent className="pt-6 text-center text-destructive">
-          Error loading transactions
-        </CardContent>
-      </Card>
-    );
-  }
+  const tabs = [
+    "All",
+    "Deposits",
+    "Bank Withdrawals",
+    "Internal Transfers",
+    "Bill Payments",
+    "Cross-border",
+    "Crypto Swaps",
+    "Fees",
+  ];
 
-  const transactions: Transaction[] = transactionsData?.data || [];
+  const isDeposit = (type: string) => ["Crypto Deposit", "Fiat Deposit"].includes(type);
 
-  // Pagination logic
-  const totalPages = Math.ceil(transactions.length / PAGE_SIZE);
-  const startIndex = (page - 1) * PAGE_SIZE;
-  const paginatedData = transactions.slice(startIndex, startIndex + PAGE_SIZE);
-
-  const FIAT_CURRENCIES = ["NGN", "USD", "EUR", "GBP"];
-
-  const formatAmount = (
-    amount: number | undefined,
-    currency: string | undefined,
-  ) => {
-    if (amount === undefined) return "N/A";
-    const cur = (currency ?? "NGN").toUpperCase();
-
-    if (FIAT_CURRENCIES.includes(cur)) {
-      return new Intl.NumberFormat("en-NG", {
-        style: "currency",
-        currency: cur,
-      }).format(amount);
-    }
-
-    // For crypto or swap pairs (e.g. "USDC TO NGN"), extract the base token
-    const cryptoMatch = cur.match(/^([A-Z]+)/);
-    const ticker = cryptoMatch ? cryptoMatch[1] : cur;
-
-    return `${new Intl.NumberFormat("en-NG").format(amount)} ${ticker}`;
+  const typeStyle = (type: string) => {
+    if (isDeposit(type)) return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
+    if (type === "Bank Withdrawal") return "bg-amber-500/15 text-amber-400 border-amber-500/20";
+    if (type === "Internal Transfer") return "bg-sky-500/15 text-sky-400 border-sky-500/20";
+    if (type === "Bill Payment") return "bg-orange-500/15 text-orange-400 border-orange-500/20";
+    if (type === "Cross-border") return "bg-cyan-500/15 text-cyan-400 border-cyan-500/20";
+    if (type === "Crypto Swap") return "bg-violet-500/15 text-violet-400 border-violet-500/20";
+    if (type === "Fee") return "bg-zinc-500/15 text-zinc-400 border-zinc-500/20";
+    return "bg-muted/15 text-muted-foreground border-border";
   };
 
-  // --- CSV Export ---
+  const tabFilter = (type: string) => {
+    if (tab === "All") return true;
+    if (tab === "Deposits") return ["Crypto Deposit", "Fiat Deposit"].includes(type);
+    if (tab === "Bank Withdrawals") return type === "Bank Withdrawal";
+    if (tab === "Internal Transfers") return type === "Internal Transfer";
+    if (tab === "Bill Payments") return type === "Bill Payment";
+    if (tab === "Cross-border") return type === "Cross-border";
+    if (tab === "Crypto Swaps") return type === "Crypto Swap";
+    if (tab === "Fees") return type === "Fee";
+    return true;
+  };
+
+  const filtered = useMemo(() => {
+    return transactions.filter((trx) => {
+      const type = getTxnType(trx);
+      if (!tabFilter(type)) return false;
+      if (!search.trim()) return true;
+      const lower = search.toLowerCase();
+      const userName = trx.userId?.fullName || "";
+      const id = trx._id || "";
+      return (
+        userName.toLowerCase().includes(lower) ||
+        id.toLowerCase().includes(lower) ||
+        type.toLowerCase().includes(lower) ||
+        (trx.reference || "").toLowerCase().includes(lower)
+      );
+    });
+  }, [transactions, tab, search]);
+
+  const paged = useMemo(() => {
+    return filtered.slice((pg - 1) * perPage, pg * perPage);
+  }, [filtered, pg, perPage]);
+
+  const renderDetails = (trx: Transaction, type: string) => {
+    if (type === "Crypto Swap" || (trx.currency || "").toLowerCase().includes("to")) {
+      const cryptoAmt = (trx as any).cryptoAmount;
+      return (
+        <div>
+          <p className="text-[11px] font-mono font-bold text-violet-400">
+            {cryptoAmt ? `${cryptoAmt} ` : ""}{trx.currency}
+          </p>
+          <p className="text-[9px] text-muted-foreground font-mono">Ref: {trx.reference?.slice(-12) || "-"}</p>
+        </div>
+      );
+    }
+
+    if (type === "Bank Withdrawal" || trx.destinationAccountName) {
+      const bank = trx.destinationBankName || trx.destionationBankName || "Bank Transfer";
+      return (
+        <div>
+          <p className="text-[11px] font-semibold text-foreground">{bank}</p>
+          <p className="text-[10px] font-mono text-muted-foreground">
+            {trx.destinationAccountNumber || "-"} · {trx.destinationAccountName || "-"}
+          </p>
+        </div>
+      );
+    }
+
+    if (type === "Cross-border" || (trx.currency || "").includes("-")) {
+      const metadata = (trx as any).metadata;
+      const creditDetails = metadata?.buyerCreditPaymentDetails;
+      return (
+        <div>
+          <p className="text-[11px] font-semibold text-foreground">
+            {creditDetails?.providerName || trx.destinationBankName || trx.destionationBankName || "Forex Transfer"}
+          </p>
+          <p className="text-[10px] font-mono text-muted-foreground">
+            {trx.currency} · {creditDetails?.accountName || trx.destinationAccountName || "-"}
+          </p>
+        </div>
+      );
+    }
+
+    if (type === "Internal Transfer" || (trx.source || "").toLowerCase().includes("internal transfer")) {
+      const recipientName = trx.source.includes("to")
+        ? trx.source.replace("Internal Transfer to ", "")
+        : trx.source.replace("Internal Transfer from ", "");
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
+            <Hash size={9} />{trx.reference?.slice(-8) || "TRANSFER"}
+          </span>
+          <span className="text-[10px] text-muted-foreground">{recipientName || trx.destination || "-"}</span>
+        </div>
+      );
+    }
+
+    if (type === "Fiat Deposit") {
+      const senderBank = (trx as any).senderBankName;
+      const senderName = (trx as any).senderAccountName;
+      if (senderBank || senderName) {
+        return (
+          <div>
+            <p className="text-[11px] font-semibold text-foreground">{senderBank || "Deposit"}</p>
+            <p className="text-[10px] text-muted-foreground">{senderName || trx.reference}</p>
+          </div>
+        );
+      }
+      return (
+        <div>
+          <p className="text-[11px] font-semibold text-foreground">{trx.source || "Fiat Deposit"}</p>
+          <p className="text-[10px] text-muted-foreground font-mono">Ref: {trx.reference?.slice(-12) || "-"}</p>
+        </div>
+      );
+    }
+
+    if (type === "Fee") {
+      return <p className="text-[10px] text-muted-foreground font-mono">{trx.reference || "-"}</p>;
+    }
+
+    return (
+      <div>
+        <p className="text-[11px] font-semibold text-foreground">{trx.source || "Transaction"}</p>
+        <p className="text-[10px] text-muted-foreground font-mono">Ref: {trx.reference?.slice(-12) || "-"}</p>
+      </div>
+    );
+  };
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tabs.forEach((t) => {
+      counts[t] = transactions.filter((trx) => {
+        const type = getTxnType(trx);
+        if (t === "All") return true;
+        if (t === "Deposits") return ["Crypto Deposit", "Fiat Deposit"].includes(type);
+        if (t === "Bank Withdrawals") return type === "Bank Withdrawal";
+        if (t === "Internal Transfers") return type === "Internal Transfer";
+        if (t === "Bill Payments") return type === "Bill Payment";
+        if (t === "Cross-border") return type === "Cross-border";
+        if (t === "Crypto Swaps") return type === "Crypto Swap";
+        if (t === "Fees") return type === "Fee";
+        return false;
+      }).length;
+    });
+    return counts;
+  }, [transactions]);
+
+  const todayCount = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return transactions.filter((t) => (t.createdAt || "").startsWith(todayStr)).length;
+  }, [transactions]);
+
+  const totalVolume = useMemo(() => {
+    return transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  }, [transactions]);
+
+  const failedCount = useMemo(() => {
+    return transactions.filter((t) => (t.status || "").toUpperCase() === "FAILED").length;
+  }, [transactions]);
+
+  const failureRate = transactions.length > 0 ? ((failedCount / transactions.length) * 100).toFixed(2) : "0.00";
+
   const handleDownloadCSV = () => {
+    if (!transactions.length) return;
+
     const headers = [
       "Transaction ID",
       "Full Name",
       "Email",
       "Phone Number",
+      "Type",
       "Source",
       "Amount (NGN)",
       "Currency",
-      "Reference",
-      "Session ID",
       "Fee (NGN)",
       "Net Amount (NGN)",
       "Status",
-      "Destination Account Number",
-      "Destination Account Name",
-      "Destination Bank",
       "Date",
     ];
 
-    const rows = transactions.map((trx) => [
+    const rows = filtered.map((trx) => [
       trx._id,
-      trx.userId?.fullName ?? "",
-      trx.userId?.email ?? "",
-      trx.userId?.phoneNumber ?? "",
-      trx.source ?? "",
-      trx.amount ?? "",
-      trx.currency ?? "",
-      trx.reference ?? "",
-      trx.sessionId ?? "",
-      trx.fee ?? "",
-      trx.netAmount ?? "",
-      trx.status ?? "",
-      trx.destinationAccountNumber ?? "",
-      trx.destinationAccountName ?? "",
-      trx.destionationBankName ?? "",
-      trx.createdAt
-        ? format(new Date(trx.createdAt), "yyyy-MM-dd HH:mm:ss")
-        : "",
+      trx.userId?.fullName || "",
+      trx.userId?.email || "",
+      trx.userId?.phoneNumber || "",
+      getTxnType(trx),
+      trx.source || "",
+      trx.amount || 0,
+      trx.currency || "",
+      trx.fee || 0,
+      trx.netAmount || 0,
+      trx.status || "",
+      trx.createdAt || "",
     ]);
 
-    const escape = (val: string | number) => {
-      const str = String(val);
-      if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
-      return str;
-    };
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows].map((e) => e.join(",")).join("\n");
 
-    const csvContent = [
-      headers.map(escape).join(","),
-      ...rows.map((row) => row.map(escape).join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+    const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute(
-      "download",
-      `transactions_${format(new Date(), "yyyy-MM-dd_HH-mm")}.csv`,
-    );
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `transactions-${new Date().toISOString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
-          <p className="text-muted-foreground">
-            All user transactions on the platform
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline">
-            {transactions.length} Total Transactions
-          </Badge>
-          <Button
-            onClick={handleDownloadCSV}
-            variant="outline"
-            className="flex items-center gap-2"
-            disabled={transactions.length === 0}
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
-        </div>
+    <div className="flex-1 overflow-y-auto p-4 sm:p-7">
+      <PageHeader
+        title="Transactions"
+        subtitle="Every naira in, every naira out — in real time"
+        search="Search by user, ID, type…"
+        onSearch={(v) => {
+          setSearch(v);
+          setPg(1);
+        }}
+        action={
+          <PurpleBtn onClick={handleDownloadCSV}>
+            <Download size={13} /> Download CSV
+          </PurpleBtn>
+        }
+      />
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <StatCard label="Total Transactions" value={fmtN(transactions.length)} />
+        <StatCard label="Today" value={fmtN(todayCount)} sub="+18% vs yesterday" />
+        <StatCard label="Volume" value={ngn(Math.round(totalVolume))} />
+        <StatCard label="Failed" value={fmtN(failedCount)} sub={`${failureRate}% failure rate`} />
       </div>
 
-      <Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
-        <CardHeader>
-          <CardTitle>Transaction History</CardTitle>
-          <CardDescription>
-            Latest financial activities from users
-          </CardDescription>
-        </CardHeader>
+      {/* Type filter tabs */}
+      <div className="flex items-center gap-1 mb-5 flex-wrap">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            onClick={() => {
+              setTab(t);
+              setPg(1);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${tab === t
+                ? "text-white shadow-sm"
+                : "text-muted-foreground hover:text-foreground border border-border"
+              }`}
+            style={tab === t ? { background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" } : {}}
+          >
+            {t}
+            <span className={`ml-1.5 text-[10px] ${tab === t ? "text-white/60" : "text-muted-foreground"}`}>
+              {tabCounts[t] ?? 0}
+            </span>
+          </button>
+        ))}
+      </div>
 
-        <CardContent className="flex-1 overflow-hidden p-0 md:p-6">
-          <div className="overflow-x-auto w-full">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead>User</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>Fee</TableHead>
-                  <TableHead>Net</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {paginatedData.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={10}
-                      className="text-center py-8 text-muted-foreground"
+      <TableWrap>
+        <THead cols={["Txn ID", "User", "Type", "Details", "Amount", "Fee", "Status", "Date"]} />
+        <tbody className="divide-y divide-border">
+          {isLoading ? (
+            <tr>
+              <td colSpan={8} className="px-5 py-12 text-center text-[12px] text-muted-foreground">
+                <Loader2 className="animate-spin inline mr-2" size={14} /> Loading user transactions...
+              </td>
+            </tr>
+          ) : paged.length > 0 ? (
+            paged.map((t) => {
+              const type = getTxnType(t);
+              return (
+                <tr key={t._id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-5 py-3.5">
+                    <code className="text-[11px] font-mono text-primary">ID: {t._id.slice(-6)}</code>
+                  </td>
+                  <td className="px-5 py-3.5 text-[12px] font-semibold text-foreground max-w-[140px] truncate">
+                    {t.userId?.fullName || "Unknown User"}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${typeStyle(type)}`}>
+                      {type}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 max-w-[200px]">{renderDetails(t, type)}</td>
+                  <td className="px-5 py-3.5">
+                    <p
+                      className={`text-[13px] font-mono font-bold whitespace-nowrap ${isDeposit(type)
+                          ? "text-emerald-400"
+                          : type === "Fee"
+                            ? "text-zinc-400"
+                            : type === "Internal Transfer"
+                              ? "text-sky-400"
+                              : "text-foreground"
+                        }`}
                     >
-                      No transactions found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedData.map((trx: Transaction) => (
-                    <TableRow key={trx._id} className="hover:bg-muted/20">
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">
-                            {trx.userId?.fullName ?? "-"}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {trx.userId?.email ?? "-"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {trx.userId?.phoneNumber ?? "-"}
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="capitalize">
-                        {trx.source ?? "-"}
-                      </TableCell>
-
-                      <TableCell className="font-medium">
-                        {/* {formatAmount(trx.amount, trx.currency)} */}
-                        {trx.amount?.toLocaleString() ?? "-"}
-                      </TableCell>
-
-                      <TableCell>{trx.currency ?? "-"}</TableCell>
-
-                      <TableCell className="font-mono text-xs">
-                        {trx.reference ?? "-"}
-                      </TableCell>
-
-                      <TableCell>
-                        {trx.destinationAccountName ? (
-                          <div>
-                            <div className="text-sm font-medium">
-                              {trx.destinationAccountName ?? "-"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {trx.destinationAccountNumber ?? "-"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {trx.destionationBankName ?? "-"}
-                            </div>
-                          </div>
-                        ) : trx.destination ? (
-                          <div className="text-sm">
-                            {trx.destination ?? "-"}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <TableCell>{formatAmount(trx.fee, "NGN")}</TableCell>
-                      </TableCell>
-
-                      <TableCell>
-                        {/* {formatAmount(trx.netAmount, trx.currency)} */}
-                        {trx.netAmount?.toLocaleString() ?? "-"}
-                      </TableCell>
-
-                      <TableCell>
-                        <Badge
-                          variant={
-                            trx.status === "COMPLETED"
-                              ? "default"
-                              : trx.status === "SUCCESS"
-                                ? "default"
-                                : trx.status === "done"
-                                  ? "default"
-                                  : trx.status === "Pending"
-                                    ? "primary"
-                                    : trx.status === "pending"
-                                      ? "primary"
-                                      : trx.status === "SUCCESSFUL"
-                                        ? "default"
-                                        : trx.status === "completed"
-                                          ? "default"
-                                          : trx.status === "Done"
-                                            ? "default"
-                                            : trx.status === "accepted"
-                                              ? "default"
-                                              : trx.status === "FAILED"
-                                                ? "destructive"
-                                                : trx.status === "Processing"
-                                                  ? "secondary"
-                                                  : "secondary"
-                          }
-                        >
-                          {trx.status ?? "-"}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {trx.createdAt
-                          ? formatDistanceToNow(new Date(trx.createdAt), {
-                              addSuffix: true,
-                            })
-                          : "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {transactions.length > 0 && totalPages > 1 && (
-            <div className="flex items-center justify-center mt-4">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                      className={
-                        page === 1
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
-
-                  {Array.from({ length: Math.min(totalPages, 5) }).map(
-                    (_, index) => {
-                      let pageNumber = index + 1;
-                      if (totalPages > 5) {
-                        if (page <= 3) {
-                          pageNumber = index + 1;
-                        } else if (page >= totalPages - 2) {
-                          pageNumber = totalPages - 4 + index;
-                        } else {
-                          pageNumber = page - 2 + index;
-                        }
-                      }
-                      return (
-                        <PaginationItem key={pageNumber}>
-                          <PaginationLink
-                            className="cursor-pointer"
-                            isActive={page === pageNumber}
-                            onClick={() => setPage(pageNumber)}
-                          >
-                            {pageNumber}
-                          </PaginationLink>
-                        </PaginationItem>
-                      );
-                    },
-                  )}
-
-                  {totalPages > 5 && page < totalPages - 2 && (
-                    <>
-                      <PaginationItem>
-                        <span className="px-2">...</span>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink
-                          className="cursor-pointer"
-                          onClick={() => setPage(totalPages)}
-                        >
-                          {totalPages}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() =>
-                        setPage((p) => Math.min(p + 1, totalPages))
-                      }
-                      className={
-                        page === totalPages
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
+                      {isDeposit(type) ? "+" : "−"}{ngn(t.amount || 0)}
+                    </p>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {t.fee && t.fee > 0 ? (
+                      <p className="text-[11px] font-mono text-amber-400">−{ngn(t.fee)}</p>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <StatusBadge status={t.status} />
+                  </td>
+                  <td className="px-5 py-3.5 text-[11px] text-muted-foreground font-mono whitespace-nowrap">
+                    {t.createdAt ? format(new Date(t.createdAt), "dd/MM/yyyy HH:mm") : "-"}
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <tr>
+              <td colSpan={8} className="px-5 py-12 text-center text-[12px] text-muted-foreground">
+                No transactions match.
+              </td>
+            </tr>
           )}
-        </CardContent>
-      </Card>
+        </tbody>
+      </TableWrap>
+
+      <Pagination page={pg} total={filtered.length} perPage={perPage} onChange={setPg} />
     </div>
   );
 };
