@@ -19,16 +19,8 @@ import WithdrawalControls from "./pages/admin/WithdrawalControls";
 import AdminRoles from "./pages/admin/AdminRoles";
 import Campaigns from "./pages/admin/Campaigns";
 import Segments from "./pages/admin/Segments";
-import ErrorSDK from "@concordiq/error-sdk";
 
 const queryClient = new QueryClient();
-
-// ErrorSDK.init({
-//   apiKey: 
-//     "coiq-1a18a1f4b780297aab5eb0a9778ce75aaf9d843b4daf66cd9ef5be6ebd1b1af0",
-//   env: "staging",
-//   service: "Ravasend Service",
-// });
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

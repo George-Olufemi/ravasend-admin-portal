@@ -4,13 +4,18 @@ import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { authAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/images/ravasend.png"
+import logo from "@/assets/images/ravasend.png";
 import { Eye, EyeOff } from "lucide-react";
-import ErrorSDK from "@concordiq/error-sdk";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -22,20 +27,15 @@ const Login = () => {
   const loginMutation = useMutation({
     mutationFn: () => authAPI.login(email, password),
     onSuccess: (data) => {
-      localStorage.setItem('reva_admin_token', data.token);
-      localStorage.setItem('reva_admin_user', JSON.stringify(data.user));
+      localStorage.setItem("reva_admin_token", data.token);
+      localStorage.setItem("reva_admin_user", JSON.stringify(data.user));
       toast({
         title: "Success",
         description: "Login successful! Welcome to Ravasend Admin Portal",
       });
-      navigate('/admin');
+      navigate("/admin");
     },
     onError: (error: any) => {
-      ErrorSDK.capture(error, {
-        controller: "login",
-        message: error,
-        stack: error,
-      });
       toast({
         variant: "destructive",
         title: "Login Failed",
