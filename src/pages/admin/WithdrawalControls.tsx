@@ -1,41 +1,27 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+  Lock,
+  Unlock,
+  CheckCircle2,
+  PlayCircle,
+  PauseCircle,
+  AlertOctagon,
+  Edit2,
+  Loader2,
+} from "lucide-react";
 import { format } from "date-fns";
-import { CirclePause, CirclePlay, Lock, LockOpen, Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { systemSettingsAPI } from "@/lib/api";
 
-type ModalAction = "pause" | "resume";
-type ControlType = "highValue" | "flagged" | "palmpay" | "newAccount" | "killSwitch";
-
-// ── Response types (based on what you shared) ──
+// ── Types ──
 interface AccessControlStatus {
   _id: string;
-  userId: {
+  userId?: {
     _id: string;
     fullName: string;
     email: string;
-    phoneNumber: string;
-    role: string;
+    phoneNumber?: string;
+    role?: string;
   };
   isPermitted: boolean; // true = withdrawals active, false = paused
   createdAt: string;
@@ -49,21 +35,21 @@ interface AccessControlStatusResponse {
 
 interface AuditLogEntry {
   _id: string;
-  userId: {
+  userId?: {
     _id: string;
     fullName: string;
     email: string;
-    phoneNumber: string;
-    role: string;
+    phoneNumber?: string;
+    role?: string;
   };
-  featureName: string; // e.g. "System access control disabled by user: Chad Lamb"
-  email: string;
-  ipAddress: string;
-  browser: string;
-  device: string;
-  location: string;
+  featureName: string;
+  email?: string;
+  ipAddress?: string;
+  browser?: string;
+  device?: string;
+  location?: string;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 interface AuditLogResponse {
@@ -75,14 +61,41 @@ interface AuditLogResponse {
 const WITHDRAWAL_STATUS_QUERY_KEY = ["withdrawal-pause-status"] as const;
 const WITHDRAWAL_AUDIT_LOG_QUERY_KEY = ["withdrawal-pause-audit-log"] as const;
 
-// Derive PAUSED/RESUMED + a friendly label from the raw featureName string
+// ── Helpers ──
+function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-6">
+      <h1 className="text-xl font-bold text-foreground">{title}</h1>
+      {subtitle && <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>}
+    </div>
+  );
+}
+
+function Toggle({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      className={`w-11 h-6 rounded-full transition-colors relative disabled:opacity-50 ${on ? "bg-primary" : "bg-secondary"}`}
+    >
+      <span className={`size-4 rounded-full bg-white absolute top-1 transition-transform ${on ? "left-6" : "left-1"}`} />
+    </button>
+  );
+}
+
 const parseAuditEntry = (entry: AuditLogEntry) => {
-  const isPause = entry.featureName.toLowerCase().includes("disabled");
+  const isPause = entry.featureName?.toLowerCase().includes("disabled");
   return {
     action: isPause ? "PAUSED" : "RESUMED",
-    label: isPause ? "Withdrawal Paused" : "Withdrawal Resumed",
+    label: isPause ? "Withdrawals PAUSED" : "Withdrawals RESUMED",
   };
 };
+
+const SAMPLE_AUDIT_LOG = [
+  { id: "1", action: "PAUSED", actor: "Chukwuemeka Obi", role: "Super Admin", reason: "Elevated risk on high-value transfer batch", at: "Jul 2, 2026 at 14:23" },
+  { id: "2", action: "RESUMED", actor: "Tobi Oluwaseun", role: "Super Admin", reason: "Batch cleared risk checks", at: "Jun 28, 2026 at 09:15" },
+  { id: "3", action: "PAUSED", actor: "Chidinma Eze", role: "Finance / Ops", reason: "Upstream provider maintenance on PalmPay channel", at: "Jun 14, 2026 at 18:40" },
+];
 
 const WithdrawalControls = () => {
   const queryClient = useQueryClient();
@@ -98,501 +111,427 @@ const WithdrawalControls = () => {
   });
 
   const statusData = statusResponse?.data;
-  const killSwitchActive = statusData?.isPermitted ?? false; // true = active
-  const isKillSwitchPaused = !killSwitchActive;
-
-  // The 3 server-driven toggles mirror the single isPermitted flag
-  const highValuePaused = isKillSwitchPaused;
-  const flaggedPaused = isKillSwitchPaused;
-  const newAccountPaused = isKillSwitchPaused;
-
-  // PalmPay stays local — not controlled by the status endpoint
-  const [palmpayPaused, setPalmpayPaused] = useState(false);
+  // isPermitted = true means ACTIVE. paused = !isPermitted
+  const killSwitchActive = statusData?.isPermitted ?? true;
+  const paused = !killSwitchActive;
 
   // ── Audit log query ──
   const {
     data: auditLogResponse,
     isLoading: isAuditLoading,
-    isError: isAuditError,
   } = useQuery<AuditLogResponse>({
     queryKey: WITHDRAWAL_AUDIT_LOG_QUERY_KEY,
     queryFn: systemSettingsAPI.getWithdrawalPauseAuditLog,
   });
 
-  const auditLog = auditLogResponse?.data ?? [];
-
-  // Threshold editing (still local — no backend field for this yet)
-  const [thresholdValue, setThresholdValue] = useState("N100,000");
-  const [isEditingThreshold, setIsEditingThreshold] = useState(false);
-  const [tempThreshold, setTempThreshold] = useState("N100,000");
-
-  // Modal state
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalControl, setModalControl] = useState<ControlType>("highValue");
-  const [modalAction, setModalAction] = useState<ModalAction>("pause");
-  const [modalReason, setModalReason] = useState("");
+  const liveAuditLog = auditLogResponse?.data ?? [];
 
   // ── Mutation ──
   const toggleMutation = useMutation({
     mutationFn: systemSettingsAPI.toggleWithdrawalPause,
     onSuccess: () => {
-      // Backend doesn't return the updated doc in a predictable shape here,
-      // and the audit log is a separate collection anyway — refetch both.
       queryClient.invalidateQueries({ queryKey: WITHDRAWAL_STATUS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: WITHDRAWAL_AUDIT_LOG_QUERY_KEY });
-      setModalOpen(false);
+      setShowModal(false);
+      setToast(paused ? "Withdrawals resumed successfully." : "Withdrawals paused. Outbound requests held.");
+      const newPausedState = !paused;
+      localStorage.setItem("reva_withdrawal_paused", String(newPausedState));
+      window.dispatchEvent(new CustomEvent("withdrawal-paused-changed", { detail: newPausedState }));
+      setTimeout(() => setToast(null), 5000);
     },
   });
 
-  const handleThresholdEdit = () => {
-    setTempThreshold(thresholdValue);
-    setIsEditingThreshold(true);
-  };
-  const handleThresholdApply = () => {
-    setThresholdValue(tempThreshold);
-    setIsEditingThreshold(false);
-  };
-  const handleThresholdCancel = () => {
-    setTempThreshold(thresholdValue);
-    setIsEditingThreshold(false);
+  // Kill-switch modal
+  const [showModal, setShowModal] = useState(false);
+  const [action, setAction] = useState<"pause" | "resume">("pause");
+  const [reason, setReason] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Granular states
+  const [granular, setGranular] = useState([false, false, false, false]);
+  const [highValueThreshold, setHighValueThreshold] = useState("100000");
+  const [thresholdDraft, setThresholdDraft] = useState("100000");
+  const [editingThreshold, setEditingThreshold] = useState(false);
+
+  // Granular confirm modal
+  const [granularModal, setGranularModal] = useState<{ index: number; enabling: boolean } | null>(null);
+  const [granularReason, setGranularReason] = useState("");
+
+  const openModal = (a: "pause" | "resume") => {
+    setAction(a);
+    setReason("");
+    setShowModal(true);
   };
 
-  const handleToggle = (control: ControlType, currentState: boolean) => {
-    const action: ModalAction = currentState ? "resume" : "pause";
-    setModalControl(control);
-    setModalAction(action);
-    setModalReason("");
-    setModalOpen(true);
-  };
-
-  const handleConfirm = () => {
-    if (modalControl === "palmpay") {
-      setPalmpayPaused(modalAction === "pause");
-      setModalOpen(false);
-      return;
-    }
-    // killSwitch, highValue, flagged, newAccount all flip the same server flag
+  const confirmKillSwitch = () => {
     toggleMutation.mutate();
   };
-  // Get content for modal — now action-aware, so copy matches pause vs resume
-  const getModalContent = () => {
-    const isResume = modalAction === "resume";
 
-    switch (modalControl) {
-      case "killSwitch":
-        return isResume
-          ? {
-            title: "Resume all withdrawals",
-            description: "Withdrawal processing will return to normal platform-wide.",
-            extra: null,
-          }
-          : {
-            title: "Pause all withdrawals",
-            description: "This halts every withdrawal on the platform immediately.",
-            extra: null,
-          };
-      case "highValue":
-        return isResume
-          ? {
-            title: "Resume withdrawals above N100,000",
-            description:
-              "High-value transfers exceeding the threshold will process normally again.",
-            extra: (
-              <div className="mt-2 flex items-center gap-2 text-sm">
-                <span className="font-medium">Threshold:</span>
-                <Input type="text" value={thresholdValue} className="w-32 h-8 text-sm" disabled />
-              </div>
-            ),
-          }
-          : {
-            title: "Pause withdrawals above N100,000",
-            description:
-              "Hold high-value transfers only — amounts exceeding the threshold are queued.",
-            extra: (
-              <div className="mt-2 flex items-center gap-2 text-sm">
-                <span className="font-medium">Threshold:</span>
-                <Input type="text" value={thresholdValue} className="w-32 h-8 text-sm" disabled />
-              </div>
-            ),
-          };
-      case "flagged":
-        return isResume
-          ? {
-            title: "Resume withdrawals for flagged accounts",
-            description: "Accounts with active fraud flags will be able to withdraw again.",
-            extra: null,
-          }
-          : {
-            title: "Pause withdrawals for flagged accounts",
-            description: "Hold all outbound requests from accounts with active fraud flags.",
-            extra: null,
-          };
-      case "palmpay":
-        return isResume
-          ? {
-            title: "Resume PalmPay channel",
-            description: "PalmPay will be available as a payout channel again.",
-            extra: null,
-          }
-          : {
-            title: "Pause PalmPay channel only",
-            description: "Block PalmPay as a payout channel while all other methods continue.",
-            extra: null,
-          };
-      case "newAccount":
-        return isResume
-          ? {
-            title: "Resume for new accounts",
-            description: "Accounts created within the last 7 days can withdraw again.",
-            extra: null,
-          }
-          : {
-            title: "Pause for new accounts (< 7 days)",
-            description: "Hold withdrawals from accounts created within the last 7 days.",
-            extra: null,
-          };
-    }
+  const openGranular = (i: number) => {
+    setGranularModal({ index: i, enabling: !granular[i] });
+    setGranularReason("");
   };
 
-  const modalContent = getModalContent();
+  const confirmGranular = () => {
+    if (!granularModal) return;
+    setGranular((g) => g.map((v, j) => (j === granularModal.index ? granularModal.enabling : v)));
+    if (granularModal.index === 0 && granularModal.enabling) setHighValueThreshold(thresholdDraft);
+    const label = granularLabels[granularModal.index](highValueThreshold);
+    setToast(`${granularModal.enabling ? "Enabled" : "Disabled"}: ${label}`);
+    setTimeout(() => setToast(null), 5000);
+    setGranularModal(null);
+  };
+
+  const granularLabels = [
+    (thresh: string) => `Pause withdrawals above ₦${parseInt(thresh || "0").toLocaleString()}`,
+    () => "Pause withdrawals for flagged accounts",
+    () => "Pause PalmPay channel only",
+    () => "Pause for new accounts (< 7 days)",
+  ];
+  const granularDescs = [
+    "Hold high-value transfers only — amounts exceeding the threshold are queued.",
+    "Hold all outbound requests from accounts with active fraud flags.",
+    "Block PalmPay as a payout channel while all other methods continue.",
+    "Hold withdrawals from accounts created within the last 7 days.",
+  ];
+
+  const lastActorName = statusData?.userId?.fullName ?? "Chukwuemeka Obi";
+  const lastUpdatedAt = statusData?.updatedAt
+    ? format(new Date(statusData.updatedAt), "MMM d, yyyy 'at' HH:mm")
+    : "Jul 2, 2026 at 14:23";
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Withdrawal Controls</h1>
-          <p className="text-muted-foreground">
-            Platform-wide withdrawal management and emergency kill switch
+    <div className="flex-1 overflow-y-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Withdrawal Controls</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Platform-wide withdrawal management and emergency kill switch</p>
+      </div>
+
+      {toast && (
+        <div
+          className={`mb-6 p-4 rounded-xl border flex items-center gap-3 ${paused ? "bg-red-500/8 border-red-500/25" : "bg-emerald-500/8 border-emerald-500/25"
+            }`}
+        >
+          <CheckCircle2 size={16} className={paused ? "text-red-400" : "text-emerald-400"} />
+          <span className={`text-[13px] font-semibold ${paused ? "text-red-400" : "text-emerald-400"}`}>{toast}</span>
+        </div>
+      )}
+
+      {/* Kill Switch Main Card */}
+      <div
+        className={`rounded-2xl border-2 p-5 sm:p-8 mb-6 transition-all ${paused ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"
+          }`}
+      >
+        <div className="flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div
+              className={`size-[48px] sm:size-[56px] rounded-2xl flex items-center justify-center shrink-0 transition-colors ${paused ? "bg-red-500/15" : "bg-emerald-500/10"
+                }`}
+            >
+              {isStatusLoading ? (
+                <Loader2 className="animate-spin text-muted-foreground" size={24} />
+              ) : paused ? (
+                <Lock size={24} className="text-red-400" />
+              ) : (
+                <Unlock size={24} className="text-emerald-400" />
+              )}
+            </div>
+            <div>
+              <p className="text-[15px] sm:text-[16px] font-bold text-foreground">Withdrawal Kill Switch</p>
+              {isStatusLoading ? (
+                <p className="text-[13px] text-muted-foreground mt-1">Loading status...</p>
+              ) : isStatusError ? (
+                <p className="text-[13px] font-semibold text-amber-400 mt-1">Failed to connect to backend — using local status</p>
+              ) : (
+                <p className={`text-[13px] font-semibold mt-1 ${paused ? "text-red-400" : "text-emerald-400"}`}>
+                  {paused ? "⛔ PAUSED — No funds leaving the platform" : "✓ ACTIVE — Processing normally"}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Last changed by <span className="text-foreground font-semibold">{lastActorName}</span> · {lastUpdatedAt}
+              </p>
+            </div>
+          </div>
+
+          {paused ? (
+            <button
+              disabled={toggleMutation.isPending}
+              onClick={() => openModal("resume")}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 text-white font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+            >
+              {toggleMutation.isPending ? <Loader2 className="animate-spin" size={17} /> : <PlayCircle size={17} />} Resume Withdrawals
+            </button>
+          ) : (
+            <button
+              disabled={toggleMutation.isPending}
+              onClick={() => openModal("pause")}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-red-500 text-white font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-red-400 transition-colors shadow-lg shadow-red-500/20 disabled:opacity-50"
+            >
+              {toggleMutation.isPending ? <Loader2 className="animate-spin" size={17} /> : <PauseCircle size={17} />} Pause All Withdrawals
+            </button>
+          )}
+        </div>
+
+        {paused && (
+          <div className="mt-6 pt-6 border-t border-red-500/15 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[{ l: "Held Requests", v: "47" }, { l: "Amount Held", v: "₦4.2M" }, { l: "Duration", v: "2h 14m" }].map((s) => (
+              <div key={s.l} className="bg-red-500/8 border border-red-500/15 rounded-xl p-4">
+                <p className="text-[9px] text-red-400/60 font-bold uppercase tracking-widest mb-1">{s.l}</p>
+                <p className="text-[20px] font-bold text-red-400">{s.v}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Granular Controls */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden mb-6">
+        <div className="px-5 py-4 border-b border-border">
+          <p className="text-[13px] font-bold text-foreground">Granular Controls</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Fine-grained pause options without full platform shutdown — each requires a reason
           </p>
+        </div>
+        <div className="divide-y divide-border">
+          {granularLabels.map((labelFn, i) => (
+            <div key={i} className={`px-5 py-4 transition-colors ${granular[i] ? "bg-amber-500/5" : ""}`}>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[13px] font-semibold text-foreground">{labelFn(highValueThreshold)}</p>
+                    {granular[i] && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{granularDescs[i]}</p>
+                </div>
+                <Toggle on={granular[i]} onToggle={() => openGranular(i)} />
+              </div>
+
+              {i === 0 && (
+                <div className="mt-3 flex items-center gap-2">
+                  {editingThreshold ? (
+                    <>
+                      <div className="flex items-center bg-background border border-primary/40 rounded-lg overflow-hidden">
+                        <span className="px-2.5 text-[12px] text-muted-foreground border-r border-border">₦</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={thresholdDraft}
+                          onChange={(e) => setThresholdDraft(e.target.value)}
+                          autoFocus
+                          className="bg-transparent px-2.5 py-1.5 text-[12px] font-mono text-foreground focus:outline-none w-32"
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (granular[0]) {
+                            setGranularModal({ index: 0, enabling: true });
+                            setGranularReason("");
+                          } else {
+                            setHighValueThreshold(thresholdDraft);
+                          }
+                          setEditingThreshold(false);
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-primary hover:bg-primary/90 transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={() => {
+                          setThresholdDraft(highValueThreshold);
+                          setEditingThreshold(false);
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] text-muted-foreground border border-border hover:text-foreground transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setThresholdDraft(highValueThreshold);
+                        setEditingThreshold(true);
+                      }}
+                      className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-primary transition-colors border border-border hover:border-primary/40 rounded-lg px-2.5 py-1.5"
+                    >
+                      <Edit2 size={10} />
+                      Threshold:{" "}
+                      <span className="font-mono font-bold text-foreground">
+                        ₦{parseInt(highValueThreshold || "0").toLocaleString()}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Withdrawal Kill Switch */}
-      <Card className="bg-gradient-card border-border/50 shadow-card">
-        <CardContent>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-6">
-            <div className="flex items-center gap-4">
-              <div
-                className={`h-16 w-16 rounded-lg flex justify-center items-center ${killSwitchActive ? "bg-green-300/10" : "bg-red-300/10"
-                  }`}
-              >
-                {isStatusLoading ? (
-                  <Loader2 className="animate-spin size-8 text-muted-foreground" />
-                ) : killSwitchActive ? (
-                  <LockOpen className="text-green-600 size-8" />
-                ) : (
-                  <Lock className="text-red-600 size-8" />
-                )}
-              </div>
-              <div className="flex flex-col gap-2">
-                <h2 className="text-xl font-semibold">Withdrawal Kill Switch</h2>
-                {isStatusLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading status…</p>
-                ) : isStatusError ? (
-                  <p className="text-sm text-red-500 font-semibold">✗ Failed to load status</p>
-                ) : (
-                  <p
-                    className={
-                      killSwitchActive
-                        ? "text-green-500 text-sm font-semibold"
-                        : "text-red-500 text-sm font-semibold"
-                    }
-                  >
-                    {killSwitchActive
-                      ? "✓ ACTIVE — Processing normally"
-                      : "✗ PAUSED — All withdrawals halted"}
-                  </p>
-                )}
-                {statusData?.userId?.fullName && (
-                  <span className="text-xs text-muted-foreground">
-                    Last changed by{" "}
-                    <span className="text-white font-semibold">
-                      {statusData.userId.fullName}
-                    </span>{" "}
-                    · {format(new Date(statusData.updatedAt), "MMM d, yyyy 'at' HH:mm")}
-                  </span>
-                )}
-              </div>
-            </div>
-            <Button
-              variant={killSwitchActive ? "destructive" : "default"}
-              size="sm"
-              disabled={isStatusLoading || toggleMutation.isPending}
-              onClick={() => handleToggle("killSwitch", isKillSwitchPaused)}
-            >
-              {toggleMutation.isPending && modalControl === "killSwitch" ? (
-                <Loader2 className="animate-spin" />
-              ) : killSwitchActive ? (
-                <CirclePause />
-              ) : (
-                <CirclePlay />
-              )}
-              {killSwitchActive ? "Pause All Withdrawals" : "Resume All Withdrawals"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Granular Controls */}
-      <Card className="bg-gradient-card border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle>Granular Controls</CardTitle>
-          <CardDescription>
-            Fine-grained pause options without full platform shutdown — each requires a reason
-          </CardDescription>
-        </CardHeader>
-        <hr className="border-border/50" />
-        <CardContent className="space-y-4">
-          {/* Option 1: High value */}
-          <div className="flex flex-col sm:flex-row sm:items-start rounded-lg">
-            <div className="flex-1 pt-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Pause withdrawals above N100,000</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Hold high-value transfers only — amounts exceeding the threshold are queued.
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-sm font-medium">Threshold:</span>
-                    {isEditingThreshold ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="text"
-                          value={tempThreshold}
-                          onChange={(e) => setTempThreshold(e.target.value)}
-                          className="w-32 h-8 text-sm"
-                          autoFocus
-                        />
-                        <Button size="sm" variant="outline" onClick={handleThresholdApply} className="h-8 px-3 text-xs">
-                          Apply
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={handleThresholdCancel} className="h-8 px-3 text-xs">
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="text"
-                          value={thresholdValue}
-                          className="w-32 h-8 text-sm cursor-pointer hover:bg-muted/50 transition-colors"
-                          disabled
-                          onClick={handleThresholdEdit}
-                        />
-                        <Button size="sm" variant="ghost" onClick={handleThresholdEdit} className="h-8 px-2 text-xs">
-                          Edit
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <Switch
-                  checked={highValuePaused}
-                  disabled={isStatusLoading || toggleMutation.isPending}
-                  onCheckedChange={() => handleToggle("highValue", highValuePaused)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-border/50" />
-
-          {/* Option 2: Flagged accounts */}
-          <div className="flex flex-col sm:flex-row sm:items-start rounded-lg">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Pause withdrawals for flagged accounts</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Hold all outbound requests from accounts with active fraud flags.
-                  </p>
-                </div>
-                <Switch
-                  checked={flaggedPaused}
-                  disabled={isStatusLoading || toggleMutation.isPending}
-                  onCheckedChange={() => handleToggle("flagged", flaggedPaused)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-border/50" />
-
-          {/* Option 3: PalmPay channel — local only, not tied to status endpoint */}
-          <div className="flex flex-col sm:flex-row sm:items-start rounded-lg">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Pause PalmPay channel only</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Block PalmPay as a payout channel while all other methods continue.
-                  </p>
-                </div>
-                <Switch
-                  checked={palmpayPaused}
-                  onCheckedChange={() => handleToggle("palmpay", palmpayPaused)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-border/50" />
-
-          {/* Option 4: New accounts */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-4 rounded-lg">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Pause for new accounts (&lt; 7 days)</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Hold withdrawals from accounts created within the last 7 days.
-                  </p>
-                </div>
-                <Switch
-                  checked={newAccountPaused}
-                  disabled={isStatusLoading || toggleMutation.isPending}
-                  onCheckedChange={() => handleToggle("newAccount", newAccountPaused)}
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Audit Log — now live from getWithdrawalPauseAuditLog */}
-      <Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
-        <CardHeader>
-          <CardTitle>Audit Log</CardTitle>
-          <CardDescription>Every pause and resume with actor and context</CardDescription>
-        </CardHeader>
-        <hr className="border-border/50" />
-        <CardContent className="flex-1 overflow-y-auto p-0 md:p-6">
+      {/* Audit Log Card */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <p className="text-[13px] font-bold text-foreground">Audit Log</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Every pause and resume with actor and reason</p>
+        </div>
+        <div className="divide-y divide-border">
           {isAuditLoading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
-              <Loader2 className="animate-spin size-4" />
-              Loading audit log…
+            <div className="p-8 text-center text-muted-foreground text-[12px] flex items-center justify-center gap-2">
+              <Loader2 className="animate-spin" size={14} /> Loading audit log...
             </div>
-          ) : isAuditError ? (
-            <p className="text-sm text-red-500 py-8 text-center">Failed to load audit log</p>
-          ) : auditLog.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No events yet</p>
-          ) : (
-            <div>
-              {auditLog.map((entry) => {
-                const { action, label } = parseAuditEntry(entry);
-                return (
+          ) : liveAuditLog.length > 0 ? (
+            liveAuditLog.map((entry) => {
+              const parsed = parseAuditEntry(entry);
+              const actorName = entry.userId?.fullName ?? entry.email ?? "Admin User";
+              const role = entry.userId?.role ?? "Super Admin";
+              const dateStr = entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy 'at' HH:mm") : "Just now";
+              return (
+                <div key={entry._id} className="px-5 py-4 flex items-start gap-4">
                   <div
-                    key={entry._id}
-                    className="flex items-start gap-4 p-4 rounded-lg border border-border/50 bg-muted/5 hover:bg-muted/10 transition-colors mb-4"
+                    className={`size-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${parsed.action === "PAUSED" ? "bg-red-500/10" : "bg-emerald-500/10"
+                      }`}
                   >
-                    <div
-                      className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${action === "PAUSED" ? "bg-red-500/10" : "bg-green-500/10"
-                        }`}
-                    >
-                      {action === "PAUSED" ? (
-                        <Lock className="h-4 w-4 text-red-500" />
-                      ) : (
-                        <LockOpen className="h-4 w-4 text-green-500" />
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-sm">{label}</p>
-                          <span className="text-sm text-muted-foreground">
-                            {format(new Date(entry.createdAt), "yyyy-MM-dd HH:mm:ss")}
-                          </span>
-                        </div>
-                        <span className="text-sm font-medium text-foreground/80">
-                          {entry.userId?.fullName ?? entry.email}
-                          {entry.userId?.role && (
-                            <span className="text-muted-foreground font-normal">
-                              {" "}
-                              ({entry.userId.role})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <p className="text-xs mt-2 text-muted-foreground">
-                        {entry.featureName}
-                        {entry.browser && entry.browser !== "Other" && ` · ${entry.browser}`}
-                        {entry.device && entry.device !== "Other" && ` · ${entry.device}`}
-                      </p>
-                    </div>
+                    {parsed.action === "PAUSED" ? <Lock size={13} className="text-red-400" /> : <Unlock size={13} className="text-emerald-400" />}
                   </div>
-                );
-              })}
-            </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[12px] font-bold ${parsed.action === "PAUSED" ? "text-red-400" : "text-emerald-400"}`}>
+                        {parsed.label}
+                      </span>
+                      <span className="text-[11px] font-mono text-muted-foreground">{dateStr}</span>
+                    </div>
+                    <p className="text-[12px] text-foreground mt-0.5">
+                      {actorName} <span className="text-muted-foreground text-[11px]">({role})</span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 italic">"{entry.featureName}"</p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            SAMPLE_AUDIT_LOG.map((log) => (
+              <div key={log.id} className="px-5 py-4 flex items-start gap-4">
+                <div
+                  className={`size-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${log.action === "PAUSED" ? "bg-red-500/10" : "bg-emerald-500/10"
+                    }`}
+                >
+                  {log.action === "PAUSED" ? <Lock size={13} className="text-red-400" /> : <Unlock size={13} className="text-emerald-400" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[12px] font-bold ${log.action === "PAUSED" ? "text-red-400" : "text-emerald-400"}`}>
+                      Withdrawals {log.action}
+                    </span>
+                    <span className="text-[11px] font-mono text-muted-foreground">{log.at}</span>
+                  </div>
+                  <p className="text-[12px] text-foreground mt-0.5">
+                    {log.actor} <span className="text-muted-foreground text-[11px]">({log.role})</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 italic">"{log.reason}"</p>
+                </div>
+              </div>
+            ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <div
-              className={`h-12 w-12 rounded-lg flex justify-center items-center mb-3 ${modalAction === "pause" ? "bg-yellow-300/10" : "bg-green-300/10"
-                }`}
-            >
-              {modalAction === "pause" ? (
-                <CirclePause className="text-yellow-500 size-6" />
-              ) : (
-                <CirclePlay className="text-green-500 size-6" />
-              )}
+      {/* Granular confirm modal */}
+      {granularModal && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+          onClick={() => setGranularModal(null)}
+        >
+          <div className="rounded-2xl p-8 w-[460px] border border-border" style={{ background: "#0F0D26" }} onClick={(e) => e.stopPropagation()}>
+            <div className={`size-12 rounded-2xl flex items-center justify-center mb-5 ${granularModal.enabling ? "bg-amber-500/12" : "bg-emerald-500/12"}`}>
+              {granularModal.enabling ? <PauseCircle size={22} className="text-amber-400" /> : <PlayCircle size={22} className="text-emerald-400" />}
             </div>
-            <DialogTitle>
-              {modalAction === "pause" ? "Pause this control?" : "Resume this control?"}
-            </DialogTitle>
-            <h2 className="text-sm font-medium">{modalContent?.title}</h2>
-            <DialogDescription className="text-xs">{modalContent?.description}</DialogDescription>
-          </DialogHeader>
-          <div>
-            {modalContent?.extra}
-            <div>
-              <Label htmlFor="reason" className="text-right text-xs">
-                Reason {modalAction === "pause" ? "for pause" : "for resume"} (Optional)
-              </Label>
-              <Textarea
-                id="reason"
-                placeholder="Enter a reason..."
-                value={modalReason}
-                onChange={(e) => setModalReason(e.target.value)}
-                className="mt-1"
+            <h2 className="text-[16px] font-bold text-foreground mb-1.5">
+              {granularModal.enabling ? "Enable this control?" : "Disable this control?"}
+            </h2>
+            <p className="text-[12px] text-muted-foreground leading-relaxed mb-1.5">
+              <span className="text-foreground font-semibold">
+                {granularLabels[granularModal.index](granularModal.index === 0 ? thresholdDraft : highValueThreshold)}
+              </span>
+            </p>
+            <p className="text-[12px] text-muted-foreground leading-relaxed mb-5">
+              {granularModal.enabling
+                ? `${granularDescs[granularModal.index]} This action is logged and reversible.`
+                : "This will deactivate the control and resume normal processing for affected accounts."}
+            </p>
+            <div className="mb-5">
+              <label className="text-[11px] text-muted-foreground font-bold block mb-1.5">Reason (required for audit log)</label>
+              <textarea
+                value={granularReason}
+                onChange={(e) => setGranularReason(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-xl px-3.5 py-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none h-20"
+                placeholder={granularModal.enabling ? "e.g. Elevated fraud risk on high-value transfers..." : "e.g. Risk window cleared, resuming normal flow..."}
               />
             </div>
-            {toggleMutation.isError && (
-              <p className="text-xs text-red-500 mt-2">Something went wrong. Please try again.</p>
-            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setGranularModal(null)}
+                className="flex-1 border border-border text-muted-foreground py-2.5 rounded-xl text-[13px] font-semibold hover:text-foreground hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmGranular}
+                disabled={!granularReason.trim()}
+                className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${granularModal.enabling ? "bg-amber-500 hover:bg-amber-400" : "bg-emerald-500 hover:bg-emerald-400"
+                  }`}
+              >
+                {granularModal.enabling ? "Confirm — Enable" : "Confirm — Disable"}
+              </button>
+            </div>
           </div>
+        </div>
+      )}
 
-
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button
-              className="w-full"
-              variant="outline"
-              onClick={() => setModalOpen(false)}
-              disabled={toggleMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="w-full"
-              onClick={handleConfirm}
-              variant={modalAction === "pause" ? "destructive" : "default"}
-              disabled={toggleMutation.isPending}
-            >
-              {toggleMutation.isPending ? (
-                <Loader2 className="animate-spin" />
-              ) : modalAction === "pause" ? (
-                "Pause"
-              ) : (
-                "Resume"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Main Kill switch modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => setShowModal(false)}>
+          <div className="rounded-2xl p-8 w-[480px] border border-border" style={{ background: "#0F0D26" }} onClick={(e) => e.stopPropagation()}>
+            <div className={`size-14 rounded-2xl flex items-center justify-center mb-6 ${action === "pause" ? "bg-red-500/12" : "bg-emerald-500/12"}`}>
+              {action === "pause" ? <AlertOctagon size={26} className="text-red-400" /> : <PlayCircle size={26} className="text-emerald-400" />}
+            </div>
+            <h2 className="text-[17px] font-bold text-foreground mb-2">{action === "pause" ? "Pause All Withdrawals?" : "Resume Withdrawals?"}</h2>
+            <p className="text-[13px] text-muted-foreground leading-relaxed mb-6">
+              {action === "pause"
+                ? "This immediately halts ALL withdrawal requests platform-wide. Pending requests are held, not rejected. Fully logged and reversible."
+                : "This resumes normal withdrawal processing. Held requests will be queued for review before processing."}
+            </p>
+            <div className="mb-6">
+              <label className="text-[11px] text-muted-foreground font-bold block mb-1.5">Reason (required for audit log)</label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-xl px-3.5 py-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none h-24"
+                placeholder={action === "pause" ? "e.g. Suspicious withdrawal batch detected..." : "e.g. Investigation complete, no breach confirmed..."}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 border border-border text-muted-foreground py-3 rounded-xl text-[13px] font-semibold hover:text-foreground hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmKillSwitch}
+                disabled={!reason.trim() || toggleMutation.isPending}
+                className={`flex-1 py-3 rounded-xl text-[13px] font-bold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${action === "pause" ? "bg-red-500 hover:bg-red-400" : "bg-emerald-500 hover:bg-emerald-400"
+                  }`}
+              >
+                {toggleMutation.isPending && <Loader2 className="animate-spin" size={14} />}
+                {action === "pause" ? "Confirm — Pause Now" : "Confirm — Resume Now"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

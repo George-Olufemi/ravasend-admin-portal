@@ -1,608 +1,605 @@
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ledgerAPI, LedgerEntry, LedgerResponse } from "@/lib/api";
-import { formatDistanceToNow } from "date-fns";
-import { useState, useMemo, useEffect } from "react";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Button } from "@/components/ui/button";
-import {
-  Download,
-  Search,
-  X,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Coins,
+	Download,
+	Search,
+	X,
+	ArrowUpRight,
+	ArrowDownLeft,
+	BarChart2,
+	CheckCircle2,
+	AlertOctagon,
+	ChevronLeft,
+	ChevronRight,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { ledgerAPI, usersAPI, LedgerEntry, LedgerResponse, UserLedgerEntry } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
-// userId can come back populated ({_id, email}) from the all-ledger endpoint,
-// or as a plain string id from the per-user ledger endpoint.
-const getUserId = (entry: LedgerEntry): string | undefined =>
-  typeof entry.userId === "string" ? entry.userId : entry.userId?._id;
+function ngn(amount: number) {
+	return new Intl.NumberFormat("en-NG", {
+		style: "currency",
+		currency: "NGN",
+		maximumFractionDigits: 2,
+	}).format(amount || 0);
+}
 
-const getUserEmail = (entry: LedgerEntry): string | undefined =>
-  typeof entry.userId === "string" ? undefined : entry.userId?.email;
+function fmtN(num: number) {
+	return new Intl.NumberFormat().format(num || 0);
+}
+
+const getUserId = (entry: LedgerEntry): string => {
+	if (!entry?.userId) return "—";
+	if (typeof entry.userId === "string") return entry.userId;
+	return entry.userId._id || "—";
+};
+
+const getUserEmail = (entry: LedgerEntry): string => {
+	if (!entry?.userId) return "—";
+	if (typeof entry.userId === "object" && entry.userId.email) {
+		return entry.userId.email;
+	}
+	return typeof entry.userId === "string" ? entry.userId : "—";
+};
+
+function TypeBadge({ type }: { type: string }) {
+	const norm = (type || "").toUpperCase();
+	const isDebit = norm.startsWith("DEBIT");
+	if (isDebit) {
+		return (
+			<Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] gap-1 font-bold">
+				<ArrowUpRight size={11} /> DEBIT
+			</Badge>
+		);
+	}
+	return (
+		<Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] gap-1 font-bold">
+			<ArrowDownLeft size={11} /> CREDIT
+		</Badge>
+	);
+}
+
+function PurpleBtn({
+	children,
+	onClick,
+	disabled,
+	className = "",
+}: {
+	children: React.ReactNode;
+	onClick?: () => void;
+	disabled?: boolean;
+	className?: string;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			disabled={disabled}
+			className={`text-[12px] font-bold text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 shadow-glow ${className}`}
+			style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
+		>
+			{children}
+		</button>
+	);
+}
+
+// ─── Main Ledger Component ──────────────────────────────────────────────────
 
 const Ledger = () => {
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedUserEmail, setSelectedUserEmail] = useState<string>("");
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
+	const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+	const [selectedUserEmail, setSelectedUserEmail] = useState<string>("");
+	const [pg, setPg] = useState(1);
+	const [search, setSearch] = useState("");
+	const perPage = 10;
 
-  const {
-    data: ledgerData,
-    isLoading,
-    error,
-  } = useQuery<LedgerResponse>({
-    queryKey: ["ledger"],
-    queryFn: ledgerAPI.getAll,
-  });
-  const entries = ledgerData?.data || [];
+	// ── Fetch Live Data ──────────────────────────────────────────────────────
 
-  const { data: userLedgerData, isLoading: userLedgerLoading } = useQuery({
-    queryKey: ["user-ledger", selectedUserId],
-    queryFn: () => ledgerAPI.viewuserledger(selectedUserId!),
-    enabled: !!selectedUserId, // VERY IMPORTANT
-  });
+	const {
+		data: ledgerData,
+		isLoading: isLedgerLoading,
+		error: ledgerError,
+	} = useQuery<LedgerResponse>({
+		queryKey: ["ledger"],
+		queryFn: ledgerAPI.getAll,
+	});
 
-  const filteredEntries = useMemo(() => {
-    if (!searchTerm.trim()) return entries;
-    const lowerSearch = searchTerm.toLowerCase();
-    return entries.filter(
-      (entry: LedgerEntry) =>
-        getUserEmail(entry)?.toLowerCase().includes(lowerSearch) ||
-        getUserId(entry)?.toLowerCase().includes(lowerSearch) ||
-        entry.type?.toLowerCase().includes(lowerSearch) ||
-        entry._id?.toLowerCase().includes(lowerSearch) ||
-        entry.transaction?.toLowerCase().includes(lowerSearch) ||
-        entry.currency?.toLowerCase().includes(lowerSearch),
-    );
-  }, [entries, searchTerm]);
+	const { data: usersData } = useQuery({
+		queryKey: ["users"],
+		queryFn: usersAPI.getAll,
+	});
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm]);
+	const { data: userLedgerData, isLoading: userLedgerLoading } = useQuery({
+		queryKey: ["user-ledger", selectedUserId],
+		queryFn: () => ledgerAPI.viewuserledger(selectedUserId!),
+		enabled: !!selectedUserId,
+	});
 
-  const totalPages = Math.ceil(filteredEntries.length / PAGE_SIZE);
+	const entries: LedgerEntry[] = useMemo(() => ledgerData?.data || [], [ledgerData]);
+	const users = useMemo(() => usersData?.users || [], [usersData]);
+	const userEntries: UserLedgerEntry[] = useMemo(() => userLedgerData?.data || [], [userLedgerData]);
 
-  useEffect(() => {
-    if (page > totalPages && totalPages > 0) {
-      setPage(totalPages);
-    } else if (totalPages === 0) {
-      setPage(1);
-    }
-  }, [page, totalPages]);
+	const totalCreditsIn = useMemo(() => {
+		return entries
+			.filter((e) => {
+				const t = (e.type || "").toUpperCase();
+				return (t.startsWith("CREDIT") || t.startsWith("DEPOSIT")) && (e.currency?.toUpperCase() === "NGN" || !e.currency);
+			})
+			.reduce((acc, e) => acc + (e.amount || 0), 0);
+	}, [entries]);
 
-  const startIndex = (page - 1) * PAGE_SIZE;
-  const paginatedEntries = filteredEntries.slice(
-    startIndex,
-    startIndex + PAGE_SIZE,
-  );
+	const totalCreditsOut = useMemo(() => {
+		return entries
+			.filter((e) => {
+				const t = (e.type || "").toUpperCase();
+				return t.startsWith("DEBIT") && (e.currency?.toUpperCase() === "NGN" || !e.currency);
+			})
+			.reduce((acc, e) => acc + (e.amount || 0), 0);
+	}, [entries]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-    }).format(amount);
-  };
+	const netBalance = totalCreditsIn - totalCreditsOut;
 
-  // Crypto amounts should NOT be run through the NGN Intl formatter —
-  // just show the raw quantity with up to 8 decimal places, trimmed.
-  const formatCrypto = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      maximumFractionDigits: 8,
-    }).format(amount);
-  };
+	// Actual net balance = sum of user wallet balances
+	const actualNetBalance = useMemo(() => {
+		return users.reduce((acc, u) => acc + (u.nairaWallet ?? u.ngn ?? 0), 0);
+	}, [users]);
 
-  const isDebit = (type: string) => type?.toUpperCase().startsWith("DEBIT");
-  const isCredit = (type: string) =>
-    type?.toUpperCase().startsWith("DEPOSIT") ||
-    type?.toUpperCase().startsWith("CREDIT");
+	const reconciliationGap = netBalance - actualNetBalance;
+	const isReconciled = Math.abs(reconciliationGap) < 1;
 
-  const getTypeLabel = (type: string) => {
-    if (isDebit(type)) return "Debit";
-    if (isCredit(type)) return "Credit";
-    return "Other";
-  };
+	const filtered = useMemo(() => {
+		if (!search.trim()) return entries;
+		const s = search.toLowerCase();
+		return entries.filter((e) => {
+			const email = getUserEmail(e).toLowerCase();
+			const id = getUserId(e).toLowerCase();
+			const type = (e.type || "").toLowerCase();
+			const curr = (e.currency || "").toLowerCase();
+			return email.includes(s) || id.includes(s) || type.includes(s) || curr.includes(s);
+		});
+	}, [entries, search]);
 
-  // Some entries carry `amount` denominated in NGN (e.g. airtime debits, or
-  // crypto swapped INTO NGN) — those should show the ₦ sign. Others carry
-  // `amount` denominated directly in the crypto currency itself (e.g. a raw
-  // "Crypto Deposit - USDC" credit, where amount === cryptoAmount) — those
-  // should NOT get a ₦ sign, just the crypto currency code.
-  const isNgnAmount = (entry: { currency?: string; type?: string }) => {
-    if (!entry.currency) return true; // no currency field => plain NGN entry
-    const currency = entry.currency.toUpperCase();
-    if (currency === "NGN") return true;
-    // e.g. "DEPOSIT - Crypto Swap usdt to NGN" -> amount was converted to NGN
-    if (entry.type?.toLowerCase().includes("to ngn")) return true;
-    return false; // amount is denominated in the crypto currency itself
-  };
+	useEffect(() => {
+		setPg(1);
+	}, [search]);
 
-  // Renders the transaction amount with the correct denomination, plus a
-  // supplementary crypto pill only when the crypto amount is genuinely
-  // extra info (i.e. amount itself is already in NGN, not the same figure).
-  const AmountDisplay = ({
-    entry,
-    signClass,
-    sign = "",
-  }: {
-    entry: {
-      amount: number;
-      cryptoAmount?: number;
-      currency?: string;
-      type?: string;
-    };
-    signClass: string;
-    sign?: string;
-  }) => {
-    const ngn = isNgnAmount(entry);
-    return (
-      <>
-        <span className={`font-semibold ${signClass}`}>
-          {ngn
-            ? `${sign}${formatCurrency(entry.amount)}`
-            : `${sign}${formatCrypto(entry.amount)} ${entry.currency?.toUpperCase()}`}
-        </span>
-        {ngn && (
-          <CryptoPill
-            cryptoAmount={entry.cryptoAmount}
-            currency={entry.currency}
-          />
-        )}
-      </>
-    );
-  };
+	const totalPages = Math.ceil(filtered.length / perPage) || 1;
+	const paged = useMemo(() => {
+		return filtered.slice((pg - 1) * perPage, pg * perPage);
+	}, [filtered, pg, perPage]);
 
-  // Small reusable pill for "26 USDC" / "1.46413136 usdt" etc.
-  const CryptoPill = ({
-    cryptoAmount,
-    currency,
-  }: {
-    cryptoAmount?: number;
-    currency?: string;
-  }) => {
-    if (cryptoAmount === undefined || cryptoAmount === null || !currency)
-      return null;
-    return (
-      <Badge
-        variant="outline"
-        className="mt-1 bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1 w-fit text-[10px] font-normal"
-      >
-        <Coins className="h-3 w-3" />
-        {formatCrypto(cryptoAmount)} {currency.toUpperCase()}
-      </Badge>
-    );
-  };
+	// ── Per-User Summary ────────────────────────────────────────────────────
 
-  const downloadCSV = () => {
-    if (!filteredEntries.length) return;
+	const userCreditsIn = useMemo(() => {
+		return userEntries
+			.filter((e) => {
+				const t = (e.type || "").toUpperCase();
+				return (t.startsWith("CREDIT") || t.startsWith("DEPOSIT")) && (e.currency?.toUpperCase() === "NGN" || !e.currency);
+			})
+			.reduce((acc, e) => acc + (e.amount || 0), 0);
+	}, [userEntries]);
 
-    const headers = [
-      "ID",
-      "User ID",
-      "Email",
-      "Transaction ID",
-      "Type",
-      "Amount",
-      "Crypto Amount",
-      "Crypto Currency",
-      "Balance Before",
-      "Balance After",
-      "Created At",
-    ];
+	const userCreditsOut = useMemo(() => {
+		return userEntries
+			.filter((e) => {
+				const t = (e.type || "").toUpperCase();
+				return t.startsWith("DEBIT") && (e.currency?.toUpperCase() === "NGN" || !e.currency);
+			})
+			.reduce((acc, e) => acc + Math.abs(e.amount || 0), 0);
+	}, [userEntries]);
 
-    const rows = filteredEntries.map((entry: LedgerEntry) => [
-      entry._id,
-      getUserId(entry) || "",
-      getUserEmail(entry) || "",
-      entry.transaction,
-      `"${entry.type}"`, // wrap in quotes in case of commas in type string
-      entry.amount,
-      entry.cryptoAmount ?? "",
-      entry.currency ?? "",
-      entry.balanceBefore,
-      entry.balanceAfter,
-      entry.createdAt,
-    ]);
+	const userBalance = useMemo(() => {
+		if (userEntries.length === 0) return 0;
+		return userEntries[0]?.balanceAfter ?? 0;
+	}, [userEntries]);
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers, ...rows].map((e) => e.join(",")).join("\n");
+	// ── CSV Export ──────────────────────────────────────────────────────────
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      searchTerm ? "filtered-ledger.csv" : "ledger.csv",
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+	const downloadCSV = () => {
+		if (!filtered.length) return;
 
-  const clearSearch = () => setSearchTerm("");
+		const headers = [
+			"ID",
+			"User Email",
+			"User ID",
+			"Type",
+			"Amount",
+			"Currency",
+			"Balance Before",
+			"Balance After",
+			"Created At",
+		];
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+		const rows = filtered.map((e) => [
+			e._id,
+			`"${getUserEmail(e)}"`,
+			`"${getUserId(e)}"`,
+			`"${e.type}"`,
+			e.amount,
+			e.currency || "NGN",
+			e.balanceBefore,
+			e.balanceAfter,
+			e.createdAt,
+		]);
 
-  if (error) {
-    return (
-      <Card className="bg-gradient-card border-border/50">
-        <CardContent className="pt-6">
-          <div className="text-center text-destructive">
-            Error loading ledger: {(error as any)?.message || "Unknown error"}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+		const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].map((row) => row.join(",")).join("\n");
+		const encodedUri = encodeURI(csvContent);
+		const link = document.createElement("a");
+		link.setAttribute("href", encodedUri);
+		link.setAttribute("download", search ? "filtered-ledger.csv" : "ledger.csv");
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
 
-  return (
-    <div className="h-full flex flex-col space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Ledger</h1>
-          <p className="text-muted-foreground">
-            View all platform ledger entries and balance movements
-          </p>
-        </div>
+	if (isLedgerLoading) {
+		return (
+			<div className="flex items-center justify-center h-64">
+				<LoadingSpinner size="lg" />
+			</div>
+		);
+	}
 
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by email, type, ID, currency..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-8"
-            />
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          <Button onClick={downloadCSV} className="flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Download CSV
-          </Button>
-        </div>
-      </div>
+	if (ledgerError) {
+		return (
+			<Card className="bg-gradient-card border-border/50">
+				<CardContent className="pt-6">
+					<div className="text-center text-destructive">
+						Error loading ledger: {(ledgerError as any)?.message || "Unknown error"}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
 
-      <Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
-        <CardHeader>
-          <CardTitle>All Ledger Entries</CardTitle>
-          <CardDescription>
-            {filteredEntries.length === entries.length
-              ? `Total of ${entries.length} ledger entries`
-              : `Showing ${filteredEntries.length} of ${entries.length} entries`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-hidden p-0 md:p-6">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-muted/20">
-                  <TableHead>User</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Balance Before</TableHead>
-                  <TableHead>Balance After</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedEntries.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      No ledger entries found matching your search.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedEntries.map((entry: LedgerEntry) => (
-                    <TableRow
-                      key={entry._id}
-                      className="hover:bg-muted/20 cursor-pointer transition"
-                      onClick={() => {
-                        const uid = getUserId(entry);
-                        if (!uid) return;
-                        setSelectedUserId(uid);
-                        setSelectedUserEmail(getUserEmail(entry) || uid);
-                        setIsSheetOpen(true);
-                      }}
-                    >
-                      <TableCell>
-                        <div className="space-y-0.5">
-                          <div className="text-sm font-medium">
-                            {getUserEmail(entry) || "—"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            ID: {getUserId(entry)?.slice(-6) || "—"}
-                          </div>
-                        </div>
-                      </TableCell>
+	return (
+		<div className="flex-1 overflow-y-auto p-4 sm:p-7 relative space-y-6">
+			{/* Page Header */}
+			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+				<div>
+					<h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Ledger</h1>
+					<p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+						View all platform ledger entries and balance movements
+					</p>
+				</div>
+				<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+					<div className="relative w-full sm:w-72">
+						<Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+						<input
+							type="text"
+							placeholder="Search by email, type, ID, currency…"
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							className="w-full bg-secondary border border-border rounded-xl pl-9 pr-8 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+						/>
+						{search && (
+							<button
+								type="button"
+								onClick={() => setSearch("")}
+								className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+							>
+								<X size={14} />
+							</button>
+						)}
+					</div>
+					<PurpleBtn onClick={downloadCSV}>
+						<Download size={13} /> Download CSV
+					</PurpleBtn>
+				</div>
+			</div>
 
-                      {/* Type badge */}
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            isDebit(entry.type)
-                              ? "bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1 w-fit"
-                              : isCredit(entry.type)
-                                ? "bg-green-500/10 text-green-400 border-green-500/20 flex items-center gap-1 w-fit"
-                                : "flex items-center gap-1 w-fit"
-                          }
-                        >
-                          {isDebit(entry.type) ? (
-                            <ArrowUpRight className="h-3 w-3" />
-                          ) : isCredit(entry.type) ? (
-                            <ArrowDownLeft className="h-3 w-3" />
-                          ) : null}
-                          {getTypeLabel(entry.type)}
-                        </Badge>
-                      </TableCell>
+			{/* Platform-level Reconciliation Cards */}
+			<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+				{/* Total Credits In */}
+				<div className="bg-card border border-border/50 rounded-xl p-5 shadow-card">
+					<div className="flex items-center gap-2 mb-3">
+						<div className="size-6 rounded-md bg-emerald-500/15 flex items-center justify-center">
+							<ArrowDownLeft size={13} className="text-emerald-400" />
+						</div>
+						<p className="text-[11px] text-muted-foreground font-semibold">Total Credits In</p>
+					</div>
+					<p className="text-[20px] font-bold text-emerald-400 leading-none">{ngn(totalCreditsIn)}</p>
+					<p className="text-[10px] text-muted-foreground mt-1.5">All CREDIT entries (NGN)</p>
+				</div>
 
-                      {/* Full description */}
-                      <TableCell className="max-w-xs">
-                        <div
-                          className="text-sm text-muted-foreground truncate"
-                          title={entry.type}
-                        >
-                          {entry.type}
-                        </div>
-                        <div className="text-xs text-muted-foreground/60 mt-0.5">
-                          Txn: {entry.transaction?.slice(-8) || "—"}
-                        </div>
-                      </TableCell>
+				{/* Total Credits Out */}
+				<div className="bg-card border border-border/50 rounded-xl p-5 shadow-card">
+					<div className="flex items-center gap-2 mb-3">
+						<div className="size-6 rounded-md bg-red-500/15 flex items-center justify-center">
+							<ArrowUpRight size={13} className="text-red-400" />
+						</div>
+						<p className="text-[11px] text-muted-foreground font-semibold">Total Credits Out</p>
+					</div>
+					<p className="text-[20px] font-bold text-red-400 leading-none">{ngn(totalCreditsOut)}</p>
+					<p className="text-[10px] text-muted-foreground mt-1.5">All DEBIT entries (NGN)</p>
+				</div>
 
-                      {/* Amount — NGN gets ₦, crypto-denominated gets its own currency code */}
-                      <TableCell>
-                        <AmountDisplay
-                          entry={entry}
-                          signClass={
-                            isDebit(entry.type)
-                              ? "text-red-400"
-                              : isCredit(entry.type)
-                                ? "text-green-400"
-                                : ""
-                          }
-                        />
-                      </TableCell>
+				{/* Ledger Net */}
+				<div
+					className={`border rounded-xl p-5 shadow-card ${netBalance >= 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"
+						}`}
+				>
+					<div className="flex items-center gap-2 mb-3">
+						<div className={`size-6 rounded-md flex items-center justify-center ${netBalance >= 0 ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
+							<BarChart2 size={13} className={netBalance >= 0 ? "text-emerald-400" : "text-red-400"} />
+						</div>
+						<p className="text-[11px] text-muted-foreground font-semibold">Ledger Net</p>
+					</div>
+					<p className={`text-[20px] font-bold leading-none ${netBalance >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+						{netBalance >= 0 ? "+" : ""}
+						{ngn(netBalance)}
+					</p>
+					<p className="text-[10px] text-muted-foreground mt-1.5">All credits in minus all debits out</p>
+				</div>
 
-                      {/* Balance Before */}
-                      <TableCell>
-                        <div className="text-sm font-medium">
-                          {formatCurrency(entry.balanceBefore)}
-                        </div>
-                      </TableCell>
+				{/* Total User Wallets / Reconciliation Status */}
+				<div
+					className={`border rounded-xl p-5 shadow-card ${isReconciled
+							? "bg-primary/5 border-primary/20"
+							: reconciliationGap < 0
+								? "bg-red-500/5 border-red-500/20"
+								: "bg-amber-500/5 border-amber-500/20"
+						}`}
+				>
+					<div className="flex items-center justify-between mb-3">
+						<div className="flex items-center gap-2">
+							<div
+								className={`size-6 rounded-md flex items-center justify-center ${isReconciled
+										? "bg-primary/15"
+										: reconciliationGap < 0
+											? "bg-red-500/15"
+											: "bg-amber-500/15"
+									}`}
+							>
+								{isReconciled ? (
+									<CheckCircle2 size={13} className="text-primary" />
+								) : (
+									<AlertOctagon size={13} className={reconciliationGap < 0 ? "text-red-400" : "text-amber-400"} />
+								)}
+							</div>
+							<p className="text-[11px] text-muted-foreground font-semibold">Total User Wallets</p>
+						</div>
+						<span
+							className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${isReconciled
+									? "text-primary bg-primary/10 border-primary/20"
+									: reconciliationGap < 0
+										? "text-red-400 bg-red-500/10 border-red-500/20"
+										: "text-amber-400 bg-amber-500/10 border-amber-500/20"
+								}`}
+						>
+							{isReconciled ? "RECONCILED" : reconciliationGap < 0 ? "OVERPAID" : "SURPLUS"}
+						</span>
+					</div>
+					<p
+						className={`text-[20px] font-bold leading-none ${isReconciled ? "text-primary" : reconciliationGap < 0 ? "text-red-400" : "text-foreground"
+							}`}
+					>
+						{ngn(actualNetBalance)}
+					</p>
+					<p className="text-[10px] text-muted-foreground mt-1.5">
+						{isReconciled ? (
+							"Matches ledger exactly — no discrepancy"
+						) : reconciliationGap < 0 ? (
+							<span className="text-red-400 font-semibold">
+								Users hold {ngn(Math.abs(reconciliationGap))} more than ledger — investigate
+							</span>
+						) : (
+							<span className="text-amber-400">
+								Ledger is {ngn(reconciliationGap)} above wallet total — likely retained fees
+							</span>
+						)}
+					</p>
+				</div>
+			</div>
 
-                      {/* Balance After */}
-                      <TableCell>
-                        <div className="text-sm font-medium">
-                          {formatCurrency(entry.balanceAfter)}
-                        </div>
-                      </TableCell>
+			{/* Main Ledger Table Card */}
+			<Card className="bg-gradient-card border-border/50 shadow-card flex-1 flex flex-col min-h-0">
+				<CardContent className="flex-1 flex flex-col min-h-0 p-4 md:p-6 space-y-4 overflow-hidden">
+					<div>
+						<h2 className="text-[13px] font-bold text-foreground uppercase tracking-wider">All Ledger Entries</h2>
+						<p className="text-[11px] text-muted-foreground mt-0.5">
+							{fmtN(filtered.length)} entries · Click any row to drill into the user's history
+						</p>
+					</div>
 
-                      {/* Date */}
-                      <TableCell>
-                        <div className="text-sm">
-                          {formatDistanceToNow(new Date(entry.createdAt), {
-                            addSuffix: true,
-                          })}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+					<div className="flex-1 overflow-x-auto w-full rounded-lg border border-border/50">
+						<table className="w-full text-left text-[13px]">
+							<thead className="bg-muted/30 text-muted-foreground text-[11px] font-semibold border-b border-border/50 uppercase tracking-wider">
+								<tr>
+									<th className="px-5 py-3">User</th>
+									<th className="px-5 py-3">Type</th>
+									<th className="px-5 py-3">Description</th>
+									<th className="px-5 py-3">Amount</th>
+									<th className="px-5 py-3">Balance Before</th>
+									<th className="px-5 py-3">Balance After</th>
+									<th className="px-5 py-3">Date</th>
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-border/50">
+								{paged.length === 0 ? (
+									<tr>
+										<td colSpan={7} className="text-center py-12 text-muted-foreground">
+											No ledger entries found matching your search.
+										</td>
+									</tr>
+								) : (
+									paged.map((e) => {
+										const uid = getUserId(e);
+										const email = getUserEmail(e);
+										const normType = (e.type || "").toUpperCase();
+										const isDebit = normType.startsWith("DEBIT");
 
-          {filteredEntries.length > 0 && totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                      className={
-                        page === 1
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
+										return (
+											<tr
+												key={e._id}
+												className={`hover:bg-white/[0.02] transition-colors cursor-pointer ${selectedUserId === uid ? "bg-primary/10" : ""
+													}`}
+												onClick={() => {
+													if (selectedUserId === uid) {
+														setSelectedUserId(null);
+													} else {
+														setSelectedUserId(uid);
+														setSelectedUserEmail(email);
+													}
+												}}
+											>
+												<td className="px-5 py-3.5">
+													<p className="text-[12px] font-semibold text-foreground">{email}</p>
+													<p className="text-[10px] text-muted-foreground font-mono">ID: {e._id?.slice(-8) || uid?.slice(-8)}</p>
+												</td>
+												<td className="px-5 py-3.5">
+													<TypeBadge type={e.type} />
+												</td>
+												<td className="px-5 py-3.5 max-w-[260px]">
+													<p className="text-[12px] text-muted-foreground truncate" title={e.type}>
+														{e.type}
+													</p>
+												</td>
+												<td className={`px-5 py-3.5 text-[13px] font-mono font-bold ${isDebit ? "text-red-400" : "text-emerald-400"}`}>
+													{isDebit ? "−" : "+"}
+													{e.currency === "USDC" ? `${e.amount} USDC` : ngn(e.amount)}
+												</td>
+												<td className="px-5 py-3.5 text-[12px] font-mono text-muted-foreground">
+													{ngn(e.balanceBefore)}
+												</td>
+												<td className="px-5 py-3.5 text-[12px] font-mono text-muted-foreground">
+													{ngn(e.balanceAfter)}
+												</td>
+												<td className="px-5 py-3.5 text-[12px] text-muted-foreground whitespace-nowrap">
+													{e.createdAt ? new Date(e.createdAt).toLocaleString() : "—"}
+												</td>
+											</tr>
+										);
+									})
+								)}
+							</tbody>
+						</table>
+					</div>
 
-                  {Array.from({ length: Math.min(totalPages, 5) }).map(
-                    (_, index) => {
-                      let pageNumber = index + 1;
-                      if (totalPages > 5) {
-                        if (page <= 3) {
-                          pageNumber = index + 1;
-                        } else if (page >= totalPages - 2) {
-                          pageNumber = totalPages - 4 + index;
-                        } else {
-                          pageNumber = page - 2 + index;
-                        }
-                      }
-                      return (
-                        <PaginationItem key={pageNumber}>
-                          <PaginationLink
-                            className="cursor-pointer"
-                            isActive={page === pageNumber}
-                            onClick={() => setPage(pageNumber)}
-                          >
-                            {pageNumber}
-                          </PaginationLink>
-                        </PaginationItem>
-                      );
-                    },
-                  )}
+					{/* Pagination controls */}
+					{filtered.length > 0 && (
+						<div className="flex items-center justify-between pt-2 border-t border-border/50 shrink-0">
+							<span className="text-[12px] text-muted-foreground">
+								Showing {Math.min((pg - 1) * perPage + 1, filtered.length)} -{" "}
+								{Math.min(pg * perPage, filtered.length)} of {filtered.length} entries
+							</span>
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									disabled={pg === 1}
+									onClick={() => setPg((p) => Math.max(1, p - 1))}
+									className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
+								>
+									<ChevronLeft size={14} />
+								</button>
+								<span className="text-[12px] font-medium text-foreground">
+									Page {pg} of {totalPages}
+								</span>
+								<button
+									type="button"
+									disabled={pg >= totalPages}
+									onClick={() => setPg((p) => Math.min(totalPages, p + 1))}
+									className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
+								>
+									<ChevronRight size={14} />
+								</button>
+							</div>
+						</div>
+					)}
+				</CardContent>
+			</Card>
 
-                  {totalPages > 5 && page < totalPages - 2 && (
-                    <>
-                      <PaginationItem>
-                        <span className="px-2">...</span>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink
-                          className="cursor-pointer"
-                          onClick={() => setPage(totalPages)}
-                        >
-                          {totalPages}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
+			{/* Per-user Detail Drawer Panel */}
+			{selectedUserId && (
+				<div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs flex justify-end" onClick={() => setSelectedUserId(null)}>
+					<div
+						className="h-full border-l border-border flex flex-col overflow-hidden w-full max-w-[420px] shadow-2xl animate-in slide-in-from-right duration-200"
+						style={{ background: "#0F0D26" }}
+						onClick={(e) => e.stopPropagation()}
+					>
+						{/* Header */}
+						<div className="p-5 border-b border-border flex items-center justify-between shrink-0">
+							<div>
+								<p className="text-[12px] text-muted-foreground">Ledger for</p>
+								<p className="text-[13px] font-bold text-primary mt-0.5">{selectedUserEmail}</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => setSelectedUserId(null)}
+								className="size-7 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+							>
+								<X size={14} />
+							</button>
+						</div>
 
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() =>
-                        setPage((p) => Math.min(p + 1, totalPages))
-                      }
-                      className={
-                        page === totalPages
-                          ? "pointer-events-none opacity-50"
-                          : "cursor-pointer"
-                      }
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+						{/* Per-user summary */}
+						<div className="px-4 pt-4 pb-3 border-b border-border shrink-0 grid grid-cols-3 gap-2">
+							<div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl p-3">
+								<p className="text-[9px] font-bold text-emerald-400/70 uppercase tracking-wider mb-1">Credits In</p>
+								<p className="text-[13px] font-bold text-emerald-400">{ngn(userCreditsIn)}</p>
+							</div>
+							<div className="bg-red-500/8 border border-red-500/20 rounded-xl p-3">
+								<p className="text-[9px] font-bold text-red-400/70 uppercase tracking-wider mb-1">Credits Out</p>
+								<p className="text-[13px] font-bold text-red-400">{ngn(userCreditsOut)}</p>
+							</div>
+							<div className="bg-primary/8 border border-primary/20 rounded-xl p-3">
+								<p className="text-[9px] font-bold text-primary/70 uppercase tracking-wider mb-1">Balance</p>
+								<p className="text-[13px] font-bold text-primary">{ngn(userBalance)}</p>
+							</div>
+						</div>
 
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>
-              Ledger for{" "}
-              <span className="text-primary">{selectedUserEmail}</span>
-            </SheetTitle>
-          </SheetHeader>
+						{/* User ledger entries list */}
+						<div className="flex-1 overflow-y-auto p-4 space-y-3">
+							{userLedgerLoading ? (
+								<div className="flex justify-center py-10">
+									<LoadingSpinner />
+								</div>
+							) : userEntries.length === 0 ? (
+								<div className="text-center text-muted-foreground py-10 text-[12px]">
+									No ledger records found for this user.
+								</div>
+							) : (
+								userEntries.map((entry) => {
+									const normType = (entry.type || "").toUpperCase();
+									const isDebit = normType.startsWith("DEBIT");
 
-          <div className="mt-6 space-y-4">
-            {userLedgerLoading ? (
-              <div className="flex justify-center py-10">
-                <LoadingSpinner />
-              </div>
-            ) : userLedgerData?.data?.length === 0 ? (
-              <div className="text-center text-muted-foreground py-10">
-                No ledger records found
-              </div>
-            ) : (
-              userLedgerData?.data.map((item) => {
-                const debit = item.type.toUpperCase().startsWith("DEBIT");
-                const credit = item.type.toUpperCase().startsWith("CREDIT");
-
-                return (
-                  <div
-                    key={item._id}
-                    className="p-4 rounded-xl border bg-muted/20 hover:bg-muted/30 transition"
-                  >
-                    {/* Top row */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {debit ? (
-                          <ArrowUpRight className="h-4 w-4 text-red-400" />
-                        ) : credit ? (
-                          <ArrowDownLeft className="h-4 w-4 text-green-400" />
-                        ) : null}
-
-                        <span className="text-sm font-medium">
-                          {debit ? "Debit" : credit ? "Credit" : "Transaction"}
-                        </span>
-                      </div>
-
-                      <div className="text-right">
-                        <AmountDisplay
-                          entry={item}
-                          signClass={
-                            debit
-                              ? "text-red-400"
-                              : credit
-                                ? "text-green-400"
-                                : ""
-                          }
-                          sign={debit ? "−" : credit ? "+" : ""}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <div className="text-sm text-muted-foreground mt-1">
-                      {item.type}
-                    </div>
-
-                    {/* Balance */}
-                    <div className="flex justify-between text-xs mt-3 text-muted-foreground">
-                      <span>Before: {formatCurrency(item.balanceBefore)}</span>
-                      <span>After: {formatCurrency(item.balanceAfter)}</span>
-                    </div>
-
-                    {/* Date */}
-                    <div className="text-xs text-muted-foreground mt-2">
-                      {formatDistanceToNow(new Date(item.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
+									return (
+										<div key={entry._id} className="bg-card border border-border rounded-xl p-4">
+											<div className="flex items-center justify-between mb-2">
+												<div className="flex items-center gap-2">
+													{isDebit ? (
+														<ArrowUpRight size={14} className="text-red-400" />
+													) : (
+														<ArrowDownLeft size={14} className="text-emerald-400" />
+													)}
+													<span className={`text-[12px] font-bold ${isDebit ? "text-red-400" : "text-emerald-400"}`}>
+														{isDebit ? "Debit" : "Credit"}
+													</span>
+												</div>
+												<span className={`text-[14px] font-bold ${isDebit ? "text-red-400" : "text-emerald-400"}`}>
+													{isDebit ? "−" : "+"}
+													{entry.currency === "USDC" ? `${entry.amount} USDC` : ngn(Math.abs(entry.amount))}
+												</span>
+											</div>
+											<p className="text-[11px] text-muted-foreground leading-relaxed mb-3">{entry.type}</p>
+											<div className="flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/60 pt-2.5 mt-2">
+												<span>Before: {ngn(entry.balanceBefore)}</span>
+												<span>After: {ngn(entry.balanceAfter)}</span>
+											</div>
+											<p className="text-[10px] text-muted-foreground mt-1.5">
+												{entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "—"}
+											</p>
+										</div>
+									);
+								})
+							)}
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	);
 };
 
 export default Ledger;
+

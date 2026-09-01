@@ -185,20 +185,20 @@ const Events = () => {
     <div className="h-full flex flex-col space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">
-            Manage and view all registered users on the platform
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Events & Activity</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Manage and view all registered users and system event logs
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email, phone, username or ID..."
+              placeholder="Search by name, email, phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-8"
+              className="pl-8 pr-8 text-sm"
             />
             {searchTerm && (
               <button
@@ -209,7 +209,7 @@ const Events = () => {
               </button>
             )}
           </div>
-          <Button onClick={downloadCSV} className="flex items-center gap-2">
+          <Button onClick={downloadCSV} className="flex items-center justify-center gap-2 shrink-0">
             <Download className="h-4 w-4" />
             Download CSV
           </Button>
