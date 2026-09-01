@@ -10,6 +10,7 @@ import { authAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/images/ravasend.png"
 import { Eye, EyeOff } from "lucide-react";
+import ErrorSDK from "@concordiq/error-sdk";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -30,6 +31,11 @@ const Login = () => {
       navigate('/admin');
     },
     onError: (error: any) => {
+      ErrorSDK.capture(error, {
+        controller: "login",
+        message: error,
+        stack: error,
+      });
       toast({
         variant: "destructive",
         title: "Login Failed",
