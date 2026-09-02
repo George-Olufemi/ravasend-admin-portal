@@ -510,7 +510,7 @@ export const ledgerAPI = {
 
 export const auditsAPI = {
   getAll: async (): Promise<AuditsResponse> => {
-    const response = await api.get("/api/v1/user/getAllAudits");
+    const response = await api.get("/api/v1/auditlogs/audit-logs");
     return response.data;
   }
 }
