@@ -1,94 +1,325 @@
-import { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { feesAPI, Fee, CreateFeeData } from "@/lib/api";
+  Plus,
+  Trash2,
+  Pencil,
+  MoreHorizontal,
+  ToggleLeft,
+  Globe2,
+  SlidersHorizontal,
+} from "lucide-react";
+import { feesAPI, Fee as ApiFee, CreateFeeData } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Card, CardContent } from "@/components/ui/card";
 
-type FeeType = "conversion" | "forex" | "withdrawal";
+// ─── Types & Configuration ──────────────────────────────────────────────────
 
-interface FeeTypeConfig {
-  label: string;
-  description: string;
-  createFn: (data: CreateFeeData) => Promise<any>;
+export type FeeTypeKey = "conversion" | "forex" | "withdrawal";
+
+export interface FeeRule {
+  id: string;
+  _id?: string;
+  feeType: FeeTypeKey;
+  feeTypeLabel: string;
+  name: string;
+  category: string;
+  scope: "all";
+  base: string;
+  currencies: string[];
+  status: "active" | "inactive";
+  amountRaw: number;
+  updatedAt?: string;
 }
 
-interface FeeData {
-  conversion: Fee[];
-  forex: Fee[];
-  withdrawal: Fee[];
-}
+type FeeFormState = {
+  feeType: FeeTypeKey;
+  amount: string;
+};
 
-const FEE_TYPES: Record<FeeType, FeeTypeConfig> = {
+const FEE_TYPE_CONFIG: Record<FeeTypeKey, { label: string; category: string; defaultCurrencies: string[] }> = {
   conversion: {
     label: "Conversion Fee",
-    description: "Fee applied for currency conversion",
-    createFn: feesAPI.create,
+    category: "Crypto",
+    defaultCurrencies: ["NGN", "USDC", "USDT"],
   },
   forex: {
     label: "Forex Fee",
-    description: "Fee applied for forex transactions",
-    createFn: feesAPI.createForexFee,
+    category: "Cross-border",
+    defaultCurrencies: ["USD", "GBP", "EUR"],
   },
   withdrawal: {
     label: "Withdrawal Fee",
-    description: "Fee applied for withdrawals",
-    createFn: feesAPI.createWithdrawalFee,
+    category: "Bank Transfers",
+    defaultCurrencies: ["NGN"],
   },
 };
 
-const ITEMS_PER_PAGE = 10;
+// ─── UI Helper Components ───────────────────────────────────────────────────
 
-const FeePage = () => {
-  const [activeTab, setActiveTab] = useState<FeeType>("conversion");
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingFee, setEditingFee] = useState<Fee | null>(null);
-  const [formData, setFormData] = useState<CreateFeeData>({
-    amount: "",
-  });
-  const [currentPages, setCurrentPages] = useState<Record<FeeType, number>>({
-    conversion: 1,
-    forex: 1,
-    withdrawal: 1,
-  });
+function DropdownMenu({
+  items,
+  onClose,
+}: {
+  items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }[];
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-xl shadow-xl z-50 p-1 divide-y divide-border/50"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {items.map((item, i) => (
+        <button
+          key={i}
+          onClick={() => {
+            item.onClick();
+            onClose();
+          }}
+          className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] font-medium rounded-lg transition-colors ${
+            item.danger
+              ? "text-red-400 hover:bg-red-500/10"
+              : "text-foreground hover:bg-white/5"
+          }`}
+        >
+          {item.icon}
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
+function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+        {subtitle && <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>}
+      </div>
+      {action && <div>{action}</div>}
+    </div>
+  );
+}
+
+function PurpleBtn({
+  children,
+  onClick,
+  className = "",
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <Card className="bg-card border-border/50 shadow-card">
+      <CardContent className="p-5">
+        <p className="text-[12px] font-medium text-muted-foreground">{label}</p>
+        <p className="text-2xl font-bold tracking-tight text-foreground mt-1">{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SlidePanel({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-[540px] overflow-y-auto bg-background p-6 flex flex-col justify-between border-l border-border z-50">
+        <div>
+          <SheetHeader className="mb-5 text-left">
+            <SheetTitle className="text-xl font-bold text-foreground">{title}</SheetTitle>
+            <p className="text-[12px] text-muted-foreground">{subtitle}</p>
+          </SheetHeader>
+          {children}
+        </div>
+        {footer && <div className="pt-6 border-t border-border mt-6">{footer}</div>}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function FeeRuleCard({
+  f,
+  onEdit,
+  onToggle,
+  onDelete,
+}: {
+  f: FeeRule;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isFree = f.amountRaw === 0;
+
+  return (
+    <div
+      className={`bg-card border border-border rounded-2xl p-5 transition-all hover:border-primary/20 group ${
+        f.status === "inactive" ? "opacity-50" : ""
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-500/10 border-violet-500/20 text-violet-400">
+              {f.category}
+            </span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.06] text-muted-foreground border border-border">
+              {f.feeTypeLabel}
+            </span>
+            {isFree && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                FREE
+              </span>
+            )}
+            <span
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                f.status === "active"
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  : "bg-red-500/10 text-red-400 border-red-500/20"
+              }`}
+            >
+              {f.status}
+            </span>
+          </div>
+          <p className="text-[14px] font-bold text-foreground leading-snug">{f.name}</p>
+        </div>
+        <div className="relative shrink-0 flex items-center gap-1">
+          {/* <button
+            onClick={onEdit}
+            className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors"
+          >
+            <Pencil size={12} />
+          </button> */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((m) => !m);
+            }}
+            className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          {menuOpen && (
+            <DropdownMenu
+              onClose={() => setMenuOpen(false)}
+              items={[
+                {
+                  label: f.status === "active" ? "Disable rule" : "Enable rule",
+                  icon: <ToggleLeft size={13} />,
+                  onClick: onToggle,
+                },
+                {
+                  label: "Delete rule",
+                  icon: <Trash2 size={13} />,
+                  onClick: onDelete,
+                  danger: true,
+                },
+              ]}
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="mb-3 flex items-center gap-2 p-2.5 bg-secondary/40 rounded-xl border border-border">
+        <Globe2 size={11} className="text-muted-foreground shrink-0" />
+        <p className="text-[11px] text-muted-foreground">All transactions</p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold mb-1">
+            Fee charged
+          </p>
+          <p className="text-[15px] font-black text-foreground font-mono">
+            {isFree ? "Free" : f.base}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold mb-1">
+            Currencies
+          </p>
+          <div className="flex gap-1 flex-wrap justify-end">
+            {(f.currencies || ["NGN"]).map((c) => (
+              <span
+                key={c}
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/[0.06] text-muted-foreground border border-border"
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+      {f.updatedAt && (
+        <p className="mt-2.5 text-[10px] text-muted-foreground border-t border-border pt-2">
+          Last updated: {new Date(f.updatedAt).toLocaleDateString()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Fee Page Component ──────────────────────────────────────────────────
+
+function FeePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const {
-    data: feeData,
-    isLoading,
-    error,
-  } = useQuery({
+  const [fees, setFees] = useState<FeeRule[]>([]);
+  const [showPanel, setShowPanel] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterCat, setFilterCat] = useState("All");
+
+  const [form, setForm] = useState<FeeFormState>({
+    feeType: "conversion",
+    amount: "",
+  });
+
+  // Fetch all 3 fee endpoints
+  const { data: feeData, isLoading } = useQuery({
     queryKey: ["fees"],
-    queryFn: async (): Promise<FeeData> => {
+    queryFn: async () => {
       const [conversionRes, forexRes, withdrawalRes] = await Promise.all([
         feesAPI.getAll(),
         feesAPI.getAllForexFee(),
@@ -96,30 +327,92 @@ const FeePage = () => {
       ]);
 
       return {
-        conversion: conversionRes.data || [],
-        forex: forexRes.data || [],
-        withdrawal: withdrawalRes.data || [],
+        conversion: conversionRes?.data || [],
+        forex: forexRes?.data || [],
+        withdrawal: withdrawalRes?.data || [],
       };
     },
   });
 
+  useEffect(() => {
+    if (feeData) {
+      const list: FeeRule[] = [];
+
+      // Conversion fees
+      (feeData.conversion || []).forEach((item: ApiFee) => {
+        list.push({
+          id: item._id,
+          _id: item._id,
+          feeType: "conversion",
+          feeTypeLabel: "Conversion Fee",
+          name: "Currency Conversion Fee",
+          category: "Crypto",
+          scope: "all",
+          base: `₦${item.amount}`,
+          currencies: ["NGN", "USDC", "USDT"],
+          status: "active",
+          amountRaw: item.amount,
+          updatedAt: item.updatedAt || item.createdAt,
+        });
+      });
+
+      // Forex fees
+      (feeData.forex || []).forEach((item: ApiFee) => {
+        list.push({
+          id: item._id,
+          _id: item._id,
+          feeType: "forex",
+          feeTypeLabel: "Forex Fee",
+          name: "Foreign Bank Transfer Fee",
+          category: "Cross-border",
+          scope: "all",
+          base: `₦${item.amount}`,
+          currencies: ["USD", "GBP", "EUR"],
+          status: "active",
+          amountRaw: item.amount,
+          updatedAt: item.updatedAt || item.createdAt,
+        });
+      });
+
+      // Withdrawal fees
+      (feeData.withdrawal || []).forEach((item: ApiFee) => {
+        list.push({
+          id: item._id,
+          _id: item._id,
+          feeType: "withdrawal",
+          feeTypeLabel: "Withdrawal Fee",
+          name: "Local Bank Transfer Fee",
+          category: "Bank Transfers",
+          scope: "all",
+          base: `₦${item.amount}`,
+          currencies: ["NGN"],
+          status: "active",
+          amountRaw: item.amount,
+          updatedAt: item.updatedAt || item.createdAt,
+        });
+      });
+
+      setFees(list);
+    }
+  }, [feeData]);
+
   const createMutation = useMutation({
-    mutationFn: (data: CreateFeeData) => FEE_TYPES[activeTab].createFn(data),
+    mutationFn: ({ feeType, data }: { feeType: FeeTypeKey; data: CreateFeeData }) => {
+      if (feeType === "forex") return feesAPI.createForexFee(data);
+      if (feeType === "withdrawal") return feesAPI.createWithdrawalFee(data);
+      return feesAPI.create(data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fees"] });
-      setIsCreateOpen(false);
-      resetForm();
-      setCurrentPages({ ...currentPages, [activeTab]: 1 });
-      toast({
-        title: "Success",
-        description: `${FEE_TYPES[activeTab].label} created successfully!`,
-      });
+      setShowPanel(false);
+      setForm({ feeType: "conversion", amount: "" });
+      toast({ title: "Success", description: "Fee created successfully!" });
     },
-    onError: (error: any) => {
+    onError: (err: any) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.response?.data?.message || "Failed to create fee",
+        description: err?.response?.data?.message || "Failed to create fee",
       });
     },
   });
@@ -129,18 +422,16 @@ const FeePage = () => {
       feesAPI.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fees"] });
-      setEditingFee(null);
-      resetForm();
-      toast({
-        title: "Success",
-        description: "Fee updated successfully!",
-      });
+      setShowPanel(false);
+      setEditingId(null);
+      setForm({ feeType: "conversion", amount: "" });
+      toast({ title: "Success", description: "Fee updated successfully!" });
     },
-    onError: (error: any) => {
+    onError: (err: any) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.response?.data?.message || "Failed to update fee",
+        description: err?.response?.data?.message || "Failed to update fee",
       });
     },
   });
@@ -149,44 +440,85 @@ const FeePage = () => {
     mutationFn: feesAPI.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fees"] });
-      toast({
-        title: "Success",
-        description: "Fee deleted successfully!",
-      });
+      toast({ title: "Success", description: "Fee deleted successfully!" });
     },
-    onError: (error: any) => {
+    onError: (err: any) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.response?.data?.message || "Failed to delete fee",
+        description: err?.response?.data?.message || "Failed to delete fee",
       });
     },
   });
 
-  const resetForm = () => {
-    setFormData({ amount: "" });
+  const openAdd = () => {
+    setEditingId(null);
+    setForm({ feeType: "conversion", amount: "" });
+    setShowPanel(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingFee) {
-      updateMutation.mutate({ id: editingFee._id, data: formData });
+  const openEdit = (f: FeeRule) => {
+    setEditingId(f.id);
+    setForm({
+      feeType: f.feeType,
+      amount: String(f.amountRaw),
+    });
+    setShowPanel(true);
+  };
+
+  const saveRule = () => {
+    if (!form.amount) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please enter a valid fee amount.",
+      });
+      return;
+    }
+
+    const rawAmt = form.amount.replace(/[^0-9.]/g, "");
+
+    if (editingId && !editingId.startsWith("f")) {
+      updateMutation.mutate({ id: editingId, data: { amount: rawAmt } });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate({ feeType: form.feeType, data: { amount: rawAmt } });
     }
   };
 
-  const handleEdit = (fee: Fee) => {
-    setEditingFee(fee);
-    setFormData({ amount: fee.amount.toString() });
-    setIsCreateOpen(true);
+  const toggleFee = (id: string) =>
+    setFees((f) =>
+      f.map((x) => (x.id === id ? { ...x, status: x.status === "active" ? "inactive" : "active" } : x))
+    );
+
+  const deleteFee = (id: string) => {
+    deleteMutation.mutate(id);
+    setFees((f) => f.filter((x) => x.id !== id));
   };
 
-  const handleOpenDialog = () => {
-    setEditingFee(null);
-    resetForm();
-    setIsCreateOpen(true);
-  };
+  const filterTabs = ["All", "Conversion Fee", "Forex Fee", "Withdrawal Fee"];
+
+  const visible = useMemo(() => {
+    if (filterCat === "All") return fees;
+    if (filterCat === "Conversion Fee") return fees.filter((f) => f.feeType === "conversion");
+    if (filterCat === "Forex Fee") return fees.filter((f) => f.feeType === "forex");
+    if (filterCat === "Withdrawal Fee") return fees.filter((f) => f.feeType === "withdrawal");
+    return fees;
+  }, [fees, filterCat]);
+
+  const convAmt = useMemo(() => {
+    const f = fees.find((x) => x.feeType === "conversion");
+    return f ? f.base : "Not set";
+  }, [fees]);
+
+  const forexAmt = useMemo(() => {
+    const f = fees.find((x) => x.feeType === "forex");
+    return f ? f.base : "Not set";
+  }, [fees]);
+
+  const withdrawAmt = useMemo(() => {
+    const f = fees.find((x) => x.feeType === "withdrawal");
+    return f ? f.base : "Not set";
+  }, [fees]);
 
   if (isLoading) {
     return (
@@ -196,282 +528,154 @@ const FeePage = () => {
     );
   }
 
-  if (error) {
-    return (
-      <Card className="bg-gradient-card border-border/50">
-        <CardContent className="pt-6">
-          <div className="text-center text-destructive">
-            Error loading fees: {(error as any)?.message || "Unknown error"}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-7">
+      <PageHeader
+        title="Fee Structure"
+        subtitle="Platform fee rules for every transaction type"
+        action={
+          <PurpleBtn onClick={openAdd}>
+            <Plus size={13} /> Add Fee Rule
+          </PurpleBtn>
+        }
+      />
 
-  const FeeTable = ({ feeType }: { feeType: FeeType }) => {
-    const allTypeFees = feeData?.[feeType] || [];
-    const config = FEE_TYPES[feeType];
-    const currentPage = currentPages[feeType];
+      {/* Overview Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <StatCard label="Conversion Fee" value={convAmt} sub="Applied to currency swap" />
+        <StatCard label="Forex Transfer Fee" value={forexAmt} sub="Applied to foreign transfers" />
+        <StatCard label="Withdrawal Fee" value={withdrawAmt} sub="Applied to local bank withdrawals" />
+      </div>
 
-    const totalPages = Math.ceil(allTypeFees.length / ITEMS_PER_PAGE);
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    const paginatedFees = allTypeFees.slice(startIndex, endIndex);
+      {/* Filter Pills */}
+      <div className="flex items-center gap-1.5 mb-5 flex-wrap">
+        {filterTabs.map((c) => {
+          const count =
+            c === "All"
+              ? fees.length
+              : c === "Conversion Fee"
+              ? fees.filter((f) => f.feeType === "conversion").length
+              : c === "Forex Fee"
+              ? fees.filter((f) => f.feeType === "forex").length
+              : fees.filter((f) => f.feeType === "withdrawal").length;
 
-    const handlePreviousPage = () => {
-      setCurrentPages({
-        ...currentPages,
-        [feeType]: Math.max(1, currentPage - 1),
-      });
-    };
-
-    const handleNextPage = () => {
-      setCurrentPages({
-        ...currentPages,
-        [feeType]: Math.min(totalPages, currentPage + 1),
-      });
-    };
-
-    return (
-      <div className="space-y-4">
-        <div className="flex justify-end">
-          <Dialog
-            open={isCreateOpen && activeTab === feeType}
-            onOpenChange={(open) => {
-              setIsCreateOpen(open);
-              if (!open) {
-                setEditingFee(null);
-                resetForm();
+          return (
+            <button
+              key={c}
+              onClick={() => setFilterCat(c)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
+                filterCat === c
+                  ? "text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground border border-border"
+              }`}
+              style={
+                filterCat === c
+                  ? { background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }
+                  : {}
               }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button
-                onClick={handleOpenDialog}
-                className="w-full sm:w-auto hover:opacity-90 shadow-glow"
+            >
+              {c}{" "}
+              <span
+                className={`ml-1 text-[10px] ${
+                  filterCat === c ? "text-white/60" : "text-muted-foreground"
+                }`}
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Create {config.label}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto bg-gradient-card border-border/50">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingFee ? "Edit Fee" : `Create ${config.label}`}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingFee
-                    ? `Update the ${config.label.toLowerCase()} amount`
-                    : `Create a new ${config.label.toLowerCase()}`}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Amount (₦)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="10"
-                    step="0.01"
-                    value={formData.amount}
-                    onChange={(e) =>
-                      setFormData({ ...formData, amount: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={
-                      createMutation.isPending || updateMutation.isPending
-                    }
-                    className="hover:opacity-90"
-                  >
-                    {createMutation.isPending || updateMutation.isPending ? (
-                      <>
-                        <LoadingSpinner size="sm" className="mr-2" />
-                        {editingFee ? "Updating..." : "Creating..."}
-                      </>
-                    ) : editingFee ? (
-                      "Update"
-                    ) : (
-                      "Create"
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="rounded-md border border-border/50 overflow-x-auto w-full">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead>ID</TableHead>
-                <TableHead>Amount (₦)</TableHead>
-                <TableHead>Created At</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedFees.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    className="text-center text-muted-foreground py-8"
-                  >
-                    No {config.label.toLowerCase()} found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedFees.map((fee: Fee) => (
-                  <TableRow key={fee._id} className="hover:bg-muted/20">
-                    <TableCell className="text-sm font-mono">
-                      {/* {fee._id.substring(0, 12)}... */}
-                      {fee._id}
-                    </TableCell>
-                    <TableCell className="font-semibold">
-                      {fee.amount}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {fee.createdAt
-                        ? new Date(fee.createdAt).toLocaleDateString()
-                        : "N/A"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(fee)}
-                          className="h-8 w-8 p-0"
-                          title="Edit"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteMutation.mutate(fee._id)}
-                          disabled={deleteMutation.isPending}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {allTypeFees.length > ITEMS_PER_PAGE && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-4">
-            <div className="text-sm text-muted-foreground text-center sm:text-left">
-              Showing {startIndex + 1}-{Math.min(endIndex, allTypeFees.length)}{" "}
-              of {allTypeFees.length} fees
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePreviousPage}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-medium">
-                Page {currentPage} of {totalPages}
+                {count}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Fee Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {visible.map((f) => (
+          <FeeRuleCard
+            key={f.id}
+            f={f}
+            onEdit={() => openEdit(f)}
+            onToggle={() => toggleFee(f.id)}
+            onDelete={() => deleteFee(f.id)}
+          />
+        ))}
+        {visible.length === 0 && (
+          <div className="col-span-2 py-16 text-center text-[13px] text-muted-foreground bg-card border border-border rounded-2xl">
+            No fee rules found in this category.
           </div>
         )}
       </div>
-    );
-  };
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Fees Management</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          Manage conversion, forex, and withdrawal fees
-        </p>
-      </div>
-
-      <Card className="bg-gradient-card border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle>All Fees</CardTitle>
-          <CardDescription>
-            Create and manage different types of transaction fees
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as FeeType)}
-          >
-            <div className="overflow-x-auto pb-1">
-              <TabsList className="inline-flex sm:grid w-full sm:grid-cols-3 min-w-max sm:min-w-0">
-                <TabsTrigger value="conversion" className="whitespace-nowrap">
-                  Conversion Fee
-                  <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
-                    {feeData?.conversion?.length || 0}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="forex" className="whitespace-nowrap">
-                  Foreign Bank Transfer Fee
-                  <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
-                    {feeData?.forex?.length || 0}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="withdrawal" className="whitespace-nowrap">
-                  Local Bank Transfer Fee
-                  <span className="ml-2 text-xs px-2 py-1 bg-muted rounded-full">
-                    {feeData?.withdrawal?.length || 0}
-                  </span>
-                </TabsTrigger>
-              </TabsList>
+      {/* Slide Panel for Add / Edit */}
+      <SlidePanel
+        open={showPanel}
+        onClose={() => setShowPanel(false)}
+        title={editingId ? "Edit Fee Rule" : "Add Fee Rule"}
+        subtitle={editingId ? "Update fee configuration" : "Configure a new platform fee"}
+        footer={
+          <div className="flex gap-3">
+            <PurpleBtn
+              onClick={saveRule}
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save Rule"}
+            </PurpleBtn>
+            <button
+              onClick={() => setShowPanel(false)}
+              className="flex-1 border border-border text-muted-foreground text-[13px] rounded-xl hover:text-foreground hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          {/* Target Fee Type Selector */}
+          <div>
+            <label className="text-[11px] text-muted-foreground font-semibold block mb-2">
+              Fee Type <span className="text-red-400">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { key: "conversion", label: "Conversion Fee" },
+                  { key: "forex", label: "Forex Fee" },
+                  { key: "withdrawal", label: "Withdrawal Fee" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, feeType: t.key }))}
+                  className={`py-2.5 rounded-xl text-[11px] font-bold border transition-all text-center ${
+                    form.feeType === t.key
+                      ? "bg-primary/15 text-primary border-primary/40"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="mt-6">
-              <TabsContent value="conversion" className="space-y-4">
-                <FeeTable feeType="conversion" />
-              </TabsContent>
-
-              <TabsContent value="forex" className="space-y-4">
-                <FeeTable feeType="forex" />
-              </TabsContent>
-
-              <TabsContent value="withdrawal" className="space-y-4">
-                <FeeTable feeType="withdrawal" />
-              </TabsContent>
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
+          {/* Amount input */}
+          <div>
+            <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
+              Fee Amount (₦) <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={form.amount}
+              onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
+              className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+              placeholder="e.g. 150 or 9 or 0.8"
+            />
+          </div>
+        </div>
+      </SlidePanel>
     </div>
   );
-};
+}
 
 export default FeePage;

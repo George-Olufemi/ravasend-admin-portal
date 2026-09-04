@@ -103,14 +103,21 @@ export interface TransactionsResponse {
 export interface PromoCode {
   _id: string;
   promoCode: string;
+  promoType?: "standard" | "premium" | string;
+  description?: string;
+  rewardAmount?: number;
   discount: number;
   transactionAmount: number;
   expiredAt: string;
   usageCount: number;
-  maxUsage: number;
+  maxUsage: number | null;
+  targetSegments?: string[];
+  status?: "active" | "inactive" | string;
+  isDeleted?: boolean;
 }
 
 export interface PromoCodesResponse {
+  success?: boolean;
   message: string;
   data: PromoCode[];
 }
@@ -120,6 +127,10 @@ export interface CreatePromoCodeData {
   expiredAt: string;
   maxUsage: number;
   transactionAmount: string;
+  promoCode?: string;
+  promoType?: string;
+  description?: string;
+  targetSegments?: string[];
 }
 
 export interface MetricsResponse {
