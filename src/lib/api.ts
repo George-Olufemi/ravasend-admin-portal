@@ -266,6 +266,14 @@ export interface LedgerResponse {
   data: LedgerEntry[];
 }
 
+export interface TotalAmountResponse {
+  success?: boolean;
+  message?: string;
+  data?: {
+    totalAmount?: number | string;
+  };
+}
+
 export interface UserLedgerEntry {
   _id: string;
   userId: string;
@@ -385,6 +393,14 @@ export const usersAPI = {
 export const transactionAPI = {
   getAll: async (): Promise<TransactionsResponse> => {
     const response = await api.get("/api/v1/admin/all-user-transactions");
+    return response.data;
+  },
+  getTransactionVolume: async (): Promise<TotalAmountResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalTransactionAmount");
+    return response.data;
+  },
+  getFailedTransaction: async (): Promise<TotalAmountResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalFailedTransactionAmount");
     return response.data;
   },
 };
@@ -515,6 +531,22 @@ export const ledgerAPI = {
   viewuserledger: async (id: string): Promise<UserLedgerResponse> => {
     const response = await api.get(`/api/v1/ledger/getLedger/${id}`);
     // console.log("response: ", response);
+    return response.data;
+  },
+  getAllCredits: async (): Promise<TotalAmountResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalLedgerCredit");
+    return response.data;
+  },
+  getAllDebits: async (): Promise<TotalAmountResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalLedgerDebit");
+    return response.data;
+  },
+  getLedgerNet: async (): Promise<TotalAmountResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalLedgerNet");
+    return response.data;
+  },
+  getAllUserWallet: async (): Promise<TotalAmountResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalUserBalance");
     return response.data;
   },
 }

@@ -58,6 +58,7 @@ const getPageTitle = (pathname: string, search: string) => {
   if (pathname.includes("/withdrawal-control")) return "Withdrawal Controls";
   if (pathname.includes("/roles")) return "Admin & Roles";
   if (pathname.includes("/campaign")) return "Campaigns";
+  if (pathname.includes("/competitions")) return "Competitions";
   return "Admin Dashboard";
 };
 

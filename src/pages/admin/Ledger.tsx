@@ -12,10 +12,11 @@ import {
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-react";
-import { ledgerAPI, usersAPI, LedgerEntry, LedgerResponse, UserLedgerEntry } from "@/lib/api";
+import { ledgerAPI, LedgerEntry, LedgerResponse, UserLedgerEntry, TotalAmountResponse } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Button } from "@/components/ui/button";
 
 function ngn(amount: number) {
 	return new Intl.NumberFormat("en-NG", {
@@ -72,15 +73,12 @@ function PurpleBtn({
 	className?: string;
 }) {
 	return (
-		<button
+		<Button
 			type="button"
 			onClick={onClick}
-			disabled={disabled}
-			className={`text-[12px] font-bold text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 shadow-glow ${className}`}
-			style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
 		>
 			{children}
-		</button>
+		</Button>
 	);
 }
 
@@ -104,9 +102,24 @@ const Ledger = () => {
 		queryFn: ledgerAPI.getAll,
 	});
 
-	const { data: usersData } = useQuery({
-		queryKey: ["users"],
-		queryFn: usersAPI.getAll,
+	const { data: creditsData } = useQuery<TotalAmountResponse>({
+		queryKey: ["ledger-credits"],
+		queryFn: ledgerAPI.getAllCredits,
+	});
+
+	const { data: debitsData } = useQuery<TotalAmountResponse>({
+		queryKey: ["ledger-debits"],
+		queryFn: ledgerAPI.getAllDebits,
+	});
+
+	const { data: netData } = useQuery<TotalAmountResponse>({
+		queryKey: ["ledger-net"],
+		queryFn: ledgerAPI.getLedgerNet,
+	});
+
+	const { data: userWalletsData } = useQuery<TotalAmountResponse>({
+		queryKey: ["ledger-user-wallets"],
+		queryFn: ledgerAPI.getAllUserWallet,
 	});
 
 	const { data: userLedgerData, isLoading: userLedgerLoading } = useQuery({
@@ -116,33 +129,12 @@ const Ledger = () => {
 	});
 
 	const entries: LedgerEntry[] = useMemo(() => ledgerData?.data || [], [ledgerData]);
-	const users = useMemo(() => usersData?.users || [], [usersData]);
 	const userEntries: UserLedgerEntry[] = useMemo(() => userLedgerData?.data || [], [userLedgerData]);
 
-	const totalCreditsIn = useMemo(() => {
-		return entries
-			.filter((e) => {
-				const t = (e.type || "").toUpperCase();
-				return (t.startsWith("CREDIT") || t.startsWith("DEPOSIT")) && (e.currency?.toUpperCase() === "NGN" || !e.currency);
-			})
-			.reduce((acc, e) => acc + (e.amount || 0), 0);
-	}, [entries]);
-
-	const totalCreditsOut = useMemo(() => {
-		return entries
-			.filter((e) => {
-				const t = (e.type || "").toUpperCase();
-				return t.startsWith("DEBIT") && (e.currency?.toUpperCase() === "NGN" || !e.currency);
-			})
-			.reduce((acc, e) => acc + (e.amount || 0), 0);
-	}, [entries]);
-
-	const netBalance = totalCreditsIn - totalCreditsOut;
-
-	// Actual net balance = sum of user wallet balances
-	const actualNetBalance = useMemo(() => {
-		return users.reduce((acc, u) => acc + (u.nairaWallet ?? u.ngn ?? 0), 0);
-	}, [users]);
+	const totalCreditsIn = Number(creditsData?.data?.totalAmount || 0);
+	const totalCreditsOut = Number(debitsData?.data?.totalAmount || 0);
+	const netBalance = Number(netData?.data?.totalAmount || 0);
+	const actualNetBalance = Number(userWalletsData?.data?.totalAmount || 0);
 
 	const reconciliationGap = netBalance - actualNetBalance;
 	const isReconciled = Math.abs(reconciliationGap) < 1;
@@ -335,20 +327,20 @@ const Ledger = () => {
 				{/* Total User Wallets / Reconciliation Status */}
 				<div
 					className={`border rounded-xl p-5 shadow-card ${isReconciled
-							? "bg-primary/5 border-primary/20"
-							: reconciliationGap < 0
-								? "bg-red-500/5 border-red-500/20"
-								: "bg-amber-500/5 border-amber-500/20"
+						? "bg-primary/5 border-primary/20"
+						: reconciliationGap < 0
+							? "bg-red-500/5 border-red-500/20"
+							: "bg-amber-500/5 border-amber-500/20"
 						}`}
 				>
 					<div className="flex items-center justify-between mb-3">
 						<div className="flex items-center gap-2">
 							<div
 								className={`size-6 rounded-md flex items-center justify-center ${isReconciled
-										? "bg-primary/15"
-										: reconciliationGap < 0
-											? "bg-red-500/15"
-											: "bg-amber-500/15"
+									? "bg-primary/15"
+									: reconciliationGap < 0
+										? "bg-red-500/15"
+										: "bg-amber-500/15"
 									}`}
 							>
 								{isReconciled ? (
@@ -361,10 +353,10 @@ const Ledger = () => {
 						</div>
 						<span
 							className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${isReconciled
-									? "text-primary bg-primary/10 border-primary/20"
-									: reconciliationGap < 0
-										? "text-red-400 bg-red-500/10 border-red-500/20"
-										: "text-amber-400 bg-amber-500/10 border-amber-500/20"
+								? "text-primary bg-primary/10 border-primary/20"
+								: reconciliationGap < 0
+									? "text-red-400 bg-red-500/10 border-red-500/20"
+									: "text-amber-400 bg-amber-500/10 border-amber-500/20"
 								}`}
 						>
 							{isReconciled ? "RECONCILED" : reconciliationGap < 0 ? "OVERPAID" : "SURPLUS"}

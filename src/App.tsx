@@ -19,6 +19,7 @@ import WithdrawalControls from "./pages/admin/WithdrawalControls";
 import AdminRoles from "./pages/admin/AdminRoles";
 import Campaigns from "./pages/admin/Campaigns";
 import Segments from "./pages/admin/Segments";
+import Competitions from "./pages/admin/Competitions";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="roles" element={<AdminRoles />} />
             <Route path="campaign" element={<Campaigns />} />
             <Route path="segments" element={<Segments />} />
+            <Route path="competitions" element={<Competitions />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

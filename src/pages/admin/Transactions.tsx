@@ -191,6 +191,16 @@ const Transactions = () => {
     queryFn: transactionAPI.getAll,
   });
 
+  const { data: volumeData } = useQuery({
+    queryKey: ["transaction-volume"],
+    queryFn: transactionAPI.getTransactionVolume,
+  });
+
+  const { data: failedData } = useQuery({
+    queryKey: ["failed-transactions"],
+    queryFn: transactionAPI.getFailedTransaction,
+  });
+
   const transactions: Transaction[] = useMemo(() => transactionsData?.data || [], [transactionsData]);
 
   const tabs = [
@@ -359,9 +369,8 @@ const Transactions = () => {
     return transactions.filter((t) => (t.createdAt || "").startsWith(todayStr)).length;
   }, [transactions]);
 
-  const totalVolume = useMemo(() => {
-    return transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-  }, [transactions]);
+  const totalVolume = Number(volumeData?.data?.totalAmount || 0);
+  const failedAmount = Number(failedData?.data?.totalAmount || 0);
 
   const failedCount = useMemo(() => {
     return transactions.filter((t) => (t.status || "").toUpperCase() === "FAILED").length;
@@ -436,7 +445,7 @@ const Transactions = () => {
         <StatCard label="Total Transactions" value={fmtN(transactions.length)} />
         <StatCard label="Today" value={fmtN(todayCount)} sub="+18% vs yesterday" />
         <StatCard label="Volume" value={ngn(Math.round(totalVolume))} />
-        <StatCard label="Failed" value={fmtN(failedCount)} sub={`${failureRate}% failure rate`} />
+        <StatCard label="Failed" value={ngn(failedAmount)} sub={`${failureRate}% failure rate`} />
       </div>
 
       {/* Type filter tabs */}

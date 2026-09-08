@@ -74,7 +74,7 @@ const NAV: NavGroup[] = [
   {
     label: "Engagement",
     items: [
-      // { id: "competitions", label: "Competitions", icon: Trophy, url: "/admin/competitions" },
+      { id: "competitions", label: "Competitions", icon: Trophy, url: "/admin/competitions" },
       { id: "segments", label: "Segments", icon: Target, url: "/admin/segments" },
       { id: "campaigns", label: "Campaigns", icon: Megaphone, url: "/admin/campaign" },
     ],
