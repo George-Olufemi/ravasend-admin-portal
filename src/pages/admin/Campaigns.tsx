@@ -32,6 +32,7 @@ import {
 	usersAPI,
 	User,
 	CampaignItem,
+	CreateCampaignPayload,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -133,7 +134,7 @@ function ChannelBadge({ ch }: { ch: string }) {
 const GOAL_OPTIONS = [
 	{ id: "deposit", label: "Deposit", icon: "💰", desc: "Receive funds into wallet", hasDepositConfig: true },
 	{
-		id: "send",
+		id: "send money",
 		label: "Send Money",
 		icon: "↗️",
 		desc: "Transfer to any destination",
@@ -146,10 +147,10 @@ const GOAL_OPTIONS = [
 			"Australia", "UAE", "India", "Egypt", "Pakistan"
 		],
 	},
-	{ id: "invite", label: "Invite Friends", icon: "👥", desc: "Refer new users with conditions", hasCount: true, hasInviteeConditions: true },
-	{ id: "kyc", label: "KYC Verification", icon: "🪪", desc: "User reaches a KYC tier", hasKycTier: true },
+	{ id: "invite friends", label: "Invite Friends", icon: "👥", desc: "Refer new users with conditions", hasCount: true, hasInviteeConditions: true },
+	{ id: "kyc verification", label: "KYC Verification", icon: "🪪", desc: "User reaches a KYC tier", hasKycTier: true },
 	{
-		id: "bill",
+		id: "pay a bill",
 		label: "Pay a Bill",
 		icon: "🧾",
 		desc: "Any bill or VTU payment",
@@ -158,7 +159,6 @@ const GOAL_OPTIONS = [
 		scopeLabel: "Bill type",
 		scopeItems: ["Airtime", "Data Bundles", "Electricity", "TV Subscriptions", "Internet", "Education", "Water", "Insurance", "Cable TV"],
 	},
-	{ id: "attribution", label: "Attribution Only", icon: "📊", desc: "Track engagement, no conversion" },
 ] as const;
 
 const DEPOSIT_TYPES: Record<string, string[]> = {
@@ -714,7 +714,7 @@ const Campaigns = () => {
 	const [step, setStep] = useState(1);
 	const [campaignName, setCampaignName] = useState("");
 	const [selectedSeg, setSelectedSeg] = useState("");
-	const [channels, setChannels] = useState(["email", "push"]);
+	const [channels, setChannels] = useState<string[]>(["email", "push notification"]);
 	const [openMenu, setOpenMenu] = useState<string | null>(null);
 	const [campaignPg, setCampaignPg] = useState(1);
 	const campaignPerPage = 5;
@@ -736,7 +736,9 @@ const Campaigns = () => {
 
 	// Conversion Goal
 	const [conversionGoal, setConversionGoal] = useState("deposit");
+	const [goalRewardType, setGoalRewardType] = useState("isFirstDeposit");
 	// Deposit Config
+	const [depositSubtypeOption, setDepositSubtypeOption] = useState("first Deposit");
 	const [depositType, setDepositType] = useState("Crypto");
 	const [depositSubtype, setDepositSubtype] = useState("Any Crypto");
 	const [depositMinAmount, setDepositMinAmount] = useState("");
@@ -746,6 +748,9 @@ const Campaigns = () => {
 	const [goalScopeLogic, setGoalScopeLogic] = useState<"AND" | "OR">("OR");
 	const [goalMinAmount, setGoalMinAmount] = useState("");
 	const [goalMinCurrency, setGoalMinCurrency] = useState("NGN");
+	const [minAmountPerTx, setMinAmountPerTx] = useState("500");
+	const [sendMoneyCount, setSendMoneyCount] = useState("1");
+	const [billPaymentCount, setBillPaymentCount] = useState("1");
 	const [goalCount, setGoalCount] = useState("1");
 	const [goalKycTier, setGoalKycTier] = useState<"1" | "2" | "3">("1");
 	// Invite Config
@@ -803,9 +808,7 @@ const Campaigns = () => {
 	});
 
 	const users: User[] = useMemo(() => usersData?.users || [], [usersData]);
-
 	const allRawCampaigns: CampaignItem[] = useMemo(() => campaignsData?.data || [], [campaignsData]);
-
 	const liveCampaigns = useMemo(() => {
 		return allRawCampaigns.filter((c) => !c.isDeleted && (c.status || "").toLowerCase() !== "deleted");
 	}, [allRawCampaigns]);
@@ -958,26 +961,56 @@ const Campaigns = () => {
 					? rewardPromoCode
 					: "0";
 
-		const payload = {
-			segmentId,
-			segment: segmentId,
+		const normalizedChannels = channels.map((ch) => {
+			if (ch === "push") return "push notification";
+			if (ch === "inapp-popup") return "in-app pop-up";
+			if (ch === "inapp-banner") return "in-app banner";
+			return ch;
+		});
+
+		const subjectText = emailSubject.trim() || pushTitle.trim() || popupHeadline.trim() || finalName;
+		const messageText = emailBody.trim() || pushBody.trim() || popupBody.trim() || "Campaign message";
+
+		const payload: CreateCampaignPayload = {
 			campaignName: finalName,
-			subject: channels.includes("email") ? emailSubject : pushTitle || finalName,
-			message: channels.includes("email") ? emailBody : pushBody || "Campaign message",
-			recipients: bulkRecipients,
-			campaignType: channels.join(", ") || "email",
-			image: bannerImage || "",
-			depositType: depositSubtype || depositType || "first Deposit",
+			subject: subjectText,
+			message: messageText,
+			campaignType: normalizedChannels.length > 0 ? normalizedChannels : ["email"],
+			images: bannerImage || "https://revas/iuuuyyygggvvvvvfddddsdddddf",
+			depositType: depositSubtypeOption || depositSubtype || "first Deposit",
 			conversionReward: rewardVal || "200",
-			deliveryStrategy: campaignType,
+			deliveryStrategy: campaignType || "drip-timebase",
 			deliveryTime: broadcastTime || "01:00",
-			deliveryDate: broadcastDate ? new Date(broadcastDate).toISOString() : new Date().toISOString(),
+			deliveryDate: broadcastDate ? broadcastDate : "2026-08-16",
 			deliveryTimezone: "Africa/Lagos",
 			deliveryFrequency: campaignType === "event-trigger" ? eventDelay : "weekly",
-			deliveryFrequencyValue: 2,
+			deliveryFrequencyValue: "2",
 			deliveryFrequencyUnit: "hours",
 			deliveryFrequencyTimezone: "Africa/Lagos",
-			status: "active",
+			status: "draft",
+			nextDeliveryAt: "2026-08-24",
+			segmentId,
+			segment: segmentId,
+			recipients: bulkRecipients,
+			conversionGoal,
+			conditions: goalScopeItems.length > 0 ? goalScopeItems.join(", ") : (depositType === "Crypto" ? "crypto" : depositType === "Fiat" ? "fiat" : "cross-border"),
+			rewardType: conversionGoal === "deposit"
+				? goalRewardType
+				: conversionGoal === "send money"
+				? "hasSendMoney"
+				: conversionGoal === "invite friends"
+				? "hasInviteFriend"
+				: conversionGoal === "kyc verification"
+				? "hasKyc"
+				: "hasPaidBill",
+			minimumAmount: depositMinAmount || goalMinAmount || "1000",
+			tier: goalKycTier || "1",
+			minAmountPerTransaction: minAmountPerTx || "500",
+			numberOfBillPayments: billPaymentCount || "1",
+			numberOfFriends: inviteCount || "1",
+			numberOfSend: sendMoneyCount || "1",
+			promoCode: rewardPromoCode || "",
+			cashReward: rewardAmount || "5000",
 		};
 
 		// 1. Create campaign record
@@ -997,7 +1030,7 @@ const Campaigns = () => {
 		}
 
 		// 3. Call sendBulkPushNotification if push channel selected
-		if (channels.includes("push")) {
+		if (channels.includes("push") || channels.includes("push notification")) {
 			try {
 				await campaignAPI.sendBulkPushNotification({
 					subject: pushTitle || emailSubject || finalName,
@@ -1135,9 +1168,9 @@ const Campaigns = () => {
 								<div className="grid grid-cols-2 gap-2 mb-5">
 									{[
 										{ id: "email", label: "Email", desc: "HTML email to user inbox", icon: <Mail size={14} className="text-blue-400" /> },
-										{ id: "push", label: "Push Notification", desc: "Mobile app push alert", icon: <Smartphone size={14} className="text-violet-400" /> },
-										{ id: "inapp-popup", label: "In-App Pop-up", desc: "Modal overlay on app open", icon: <MonitorPlay size={14} className="text-amber-400" /> },
-										{ id: "inapp-banner", label: "In-App Banner", desc: "Persistent top/bottom banner image", icon: <Image size={14} className="text-emerald-400" /> },
+										{ id: "push notification", label: "Push Notification", desc: "Mobile app push alert", icon: <Smartphone size={14} className="text-violet-400" /> },
+										{ id: "in-app pop-up", label: "In-App Pop-up", desc: "Modal overlay on app open", icon: <MonitorPlay size={14} className="text-amber-400" /> },
+										{ id: "in-app banner", label: "In-App Banner", desc: "Persistent top/bottom banner image", icon: <Image size={14} className="text-emerald-400" /> },
 									].map((ch) => (
 										<button
 											key={ch.id}
@@ -1183,7 +1216,7 @@ const Campaigns = () => {
 								</div>
 							)}
 
-							{channels.includes("in-app") && (
+							{(channels.includes("push notification") || channels.includes("push")) && (
 								<div className="bg-card border border-border rounded-xl p-5">
 									<div className="flex items-center gap-2 mb-3">
 										<Smartphone size={13} className="text-violet-400" />
@@ -1204,7 +1237,7 @@ const Campaigns = () => {
 								</div>
 							)}
 
-							{channels.includes("inapp-popup") && (
+							{(channels.includes("in-app pop-up") || channels.includes("inapp-popup")) && (
 								<div className="bg-card border border-border rounded-xl p-5">
 									<div className="flex items-center gap-2 mb-3">
 										<MonitorPlay size={13} className="text-amber-400" />
@@ -1231,7 +1264,7 @@ const Campaigns = () => {
 								</div>
 							)}
 
-							{channels.includes("inapp-banner") && <BannerUploadWidget onBannerChange={setBannerImage} />}
+							{(channels.includes("in-app banner") || channels.includes("inapp-banner")) && <BannerUploadWidget onBannerChange={setBannerImage} />}
 
 							{/* Conversion Goal Selector */}
 							<div className="bg-card border border-border rounded-xl p-5 space-y-4">
@@ -1336,7 +1369,7 @@ const Campaigns = () => {
 								)}
 
 								{/* Send / Bill Shared Config */}
-								{(conversionGoal === "send" || conversionGoal === "bill") && (() => {
+								{(conversionGoal === "send money" || conversionGoal === "pay a bill") && (() => {
 									const g = GOAL_OPTIONS.find((x) => x.id === conversionGoal)!;
 									const items = (g as any).scopeItems as string[];
 									return (
@@ -1402,8 +1435,8 @@ const Campaigns = () => {
 														))}
 													</select>
 													<input
-														value={goalMinAmount}
-														onChange={(e) => setGoalMinAmount(e.target.value)}
+														value={minAmountPerTx}
+														onChange={(e) => setMinAmountPerTx(e.target.value)}
 														type="number"
 														placeholder="e.g. 500"
 														className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-[12px] text-foreground font-mono focus:outline-none focus:border-primary/50"
@@ -1413,41 +1446,59 @@ const Campaigns = () => {
 
 											<div>
 												<label className="text-[10px] text-muted-foreground font-semibold block mb-1.5">
-													{conversionGoal === "send" ? "Number of Sends Required" : "Number of Bill Payments Required"}
+													{conversionGoal === "send money" ? "Number of Sends Required" : "Number of Bill Payments Required"}
 												</label>
 												<div className="flex items-center gap-2">
 													<button
 														type="button"
-														onClick={() => setGoalCount((c) => String(Math.max(1, parseInt(c) - 1)))}
+														onClick={() => {
+															if (conversionGoal === "send money") {
+																setSendMoneyCount((c) => String(Math.max(1, parseInt(c || "1") - 1)));
+															} else {
+																setBillPaymentCount((c) => String(Math.max(1, parseInt(c || "1") - 1)));
+															}
+														}}
 														className="size-7 rounded-lg border border-border text-muted-foreground hover:text-foreground flex items-center justify-center text-[13px] font-bold"
 													>
 														−
 													</button>
 													<input
-														value={goalCount}
-														onChange={(e) => setGoalCount(e.target.value)}
+														value={conversionGoal === "send money" ? sendMoneyCount : billPaymentCount}
+														onChange={(e) => {
+															if (conversionGoal === "send money") {
+																setSendMoneyCount(e.target.value);
+															} else {
+																setBillPaymentCount(e.target.value);
+															}
+														}}
 														type="number"
 														min="1"
 														className="w-16 bg-background border border-border rounded-lg px-2 py-2 text-[12px] text-foreground font-mono text-center focus:outline-none focus:border-primary/50"
 													/>
 													<button
 														type="button"
-														onClick={() => setGoalCount((c) => String(parseInt(c) + 1))}
+														onClick={() => {
+															if (conversionGoal === "send money") {
+																setSendMoneyCount((c) => String(parseInt(c || "1") + 1));
+															} else {
+																setBillPaymentCount((c) => String(parseInt(c || "1") + 1));
+															}
+														}}
 														className="size-7 rounded-lg border border-border text-muted-foreground hover:text-foreground flex items-center justify-center text-[13px] font-bold"
 													>
 														+
 													</button>
 													<span className="text-[11px] text-muted-foreground">
-														time{parseInt(goalCount) !== 1 ? "s" : ""}
+														time{parseInt(conversionGoal === "send money" ? sendMoneyCount : billPaymentCount) !== 1 ? "s" : ""}
 													</span>
 												</div>
 											</div>
 
 											<div className="p-2.5 bg-primary/5 border border-primary/15 rounded-lg">
 												<p className="text-[10px] text-primary font-semibold">
-													✓ {conversionGoal === "send" ? "Send" : "Pay"}
-													{goalMinAmount ? ` ≥ ${goalMinCurrency} ${goalMinAmount}` : ""}
-													{goalScopeItems.length > 0 ? ` to ${goalScopeItems.join(` ${goalScopeLogic} `)}` : ""} — {goalCount}× required
+													✓ {conversionGoal === "send money" ? "Send" : "Pay"}
+													{minAmountPerTx ? ` ≥ ${goalMinCurrency} ${minAmountPerTx}` : ""}
+													{goalScopeItems.length > 0 ? ` to ${goalScopeItems.join(` ${goalScopeLogic} `)}` : ""} — {conversionGoal === "send money" ? sendMoneyCount : billPaymentCount}× required
 												</p>
 											</div>
 										</div>
@@ -1455,7 +1506,7 @@ const Campaigns = () => {
 								})()}
 
 								{/* Invite Friends Config */}
-								{conversionGoal === "invite" && (
+								{conversionGoal === "invite friends" && (
 									<div className="bg-secondary/50 border border-border rounded-xl p-4 space-y-3">
 										<p className="text-[11px] font-bold text-foreground">Invite Conditions</p>
 										<div>
@@ -1573,7 +1624,7 @@ const Campaigns = () => {
 								)}
 
 								{/* KYC Config */}
-								{conversionGoal === "kyc" && (
+								{conversionGoal === "kyc verification" && (
 									<div className="p-3.5 bg-secondary/50 border border-border rounded-xl space-y-3">
 										<p className="text-[11px] font-bold text-foreground">KYC Tier Required</p>
 										<div className="grid grid-cols-3 gap-2">
@@ -2012,22 +2063,20 @@ const Campaigns = () => {
 							<button
 								type="button"
 								onClick={() => { setListTab("active"); setCampaignPg(1); }}
-								className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all ${
-									listTab === "active"
+								className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all ${listTab === "active"
 										? "bg-primary text-white shadow-sm"
 										: "bg-secondary/60 text-muted-foreground hover:text-foreground border border-border"
-								}`}
+									}`}
 							>
 								Active Campaigns ({liveCampaigns.length})
 							</button>
 							<button
 								type="button"
 								onClick={() => { setListTab("deleted"); setCampaignPg(1); }}
-								className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all flex items-center gap-1.5 ${
-									listTab === "deleted"
+								className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all flex items-center gap-1.5 ${listTab === "deleted"
 										? "bg-red-500/20 text-red-400 border border-red-500/40 shadow-sm"
 										: "bg-secondary/60 text-muted-foreground hover:text-foreground border border-border"
-								}`}
+									}`}
 							>
 								<Archive size={13} /> Trash / Deleted ({deletedCampaignsList.length})
 							</button>
@@ -2095,7 +2144,9 @@ const Campaigns = () => {
 											</td>
 											<td className="px-5 py-3.5">
 												<div className="flex gap-1 flex-wrap">
-													{(c.campaignType || "email").split(",").map((ch) => (
+													{Array.isArray(c.campaignType) ? c.campaignType.map((ch: string) => (
+														<ChannelBadge key={ch} ch={ch} />
+													)) : (c.campaignType || "email").split(",").map((ch: string) => (
 														<ChannelBadge key={ch} ch={ch} />
 													))}
 												</div>

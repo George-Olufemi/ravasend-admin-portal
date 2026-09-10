@@ -123,13 +123,15 @@ export interface PromoCodesResponse {
 }
 
 export interface CreatePromoCodeData {
-  discount: string;
-  expiredAt: string;
-  maxUsage: number;
-  transactionAmount: string;
   promoCode?: string;
   promoType?: string;
+  rewardAmount?: number;
   description?: string;
+  transactionAmount?: string | number;
+  maxUsage?: number;
+  days?: number;
+  discount?: string | number;
+  expiredAt?: string;
   targetSegments?: string[];
 }
 
@@ -422,6 +424,55 @@ export const promoCodesAPI = {
     }
   },
 
+  getNumberOfActivePromo: async () => {
+    try {
+      const response = await api.get("/api/v1/promo/getTotalActivePromo");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message:
+            error.response?.data?.message || "No active promos found",
+          data: [],
+        };
+      }
+      throw error;
+    }
+  },
+
+
+  getNumberOfPromoRedeemed: async () => {
+    try {
+      const response = await api.get("/api/v1/promo/getTotalPromoRedeemed");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message:
+            error.response?.data?.message || "No active promos found",
+          data: [],
+        };
+      }
+      throw error;
+    }
+  },
+
+  getTotalValueGiven: async () => {
+    try {
+      const response = await api.get("/api/v1/promo/getTotalValueGiven");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message:
+            error.response?.data?.message || "No active promos found",
+          data: [],
+        };
+      }
+      throw error;
+    }
+  },
+
   create: async (data: CreatePromoCodeData): Promise<any> => {
     const response = await api.post("/api/v1/promo/createPromo", data);
     // console.log("response: ", response);
@@ -442,6 +493,23 @@ export const promoCodesAPI = {
   ): Promise<any> => {
     const response = await api.put(`/api/v1/promo/updatePromo/${id}`, data);
     return response.data;
+  },
+
+  getTargetSegmentUsers: async (segmentTerm: string): Promise<SegmentUsersResponse> => {
+    try {
+      const response = await api.get(`/api/v1/promo/getTargetSegmentUsers?segmentTerm=${segmentTerm}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          success: false,
+          message: error.response?.data?.message || "No target segment users found",
+          total: 0,
+          data: [],
+        };
+      }
+      throw error;
+    }
   },
 };
 
@@ -654,6 +722,40 @@ export interface CampaignItem {
   __v?: number;
 }
 
+export interface CreateCampaignPayload {
+  campaignName: string;
+  subject: string;
+  message: string;
+  campaignType: string[];
+  images?: string;
+  depositType?: string;
+  conversionReward?: string;
+  deliveryStrategy?: string;
+  deliveryTime?: string;
+  deliveryDate?: string;
+  deliveryTimezone?: string;
+  deliveryFrequency?: string;
+  deliveryFrequencyValue?: string;
+  status?: string;
+  deliveryFrequencyUnit?: string;
+  deliveryFrequencyTimezone?: string;
+  nextDeliveryAt?: string;
+  conversionGoal?: string;
+  conditions?: string;
+  rewardType?: string;
+  minimumAmount?: string;
+  tier?: string;
+  minAmountPerTransaction?: string;
+  numberOfBillPayments?: string;
+  numberOfFriends?: string;
+  numberOfSend?: string;
+  promoCode?: string;
+  cashReward?: string;
+  segmentId?: string;
+  segment?: string;
+  recipients?: string[];
+}
+
 export interface CampaignsResponse {
   success: boolean;
   message: string;
@@ -827,6 +929,22 @@ export const segmentAPI = {
   deleteSegment: async (id: string): Promise<any> => {
     const response = await api.delete(`/api/v1/segment/delete-segment/${id}`);
     return response.data;
+  },
+  getTargetSegmentUsers: async (segmentTerm: string): Promise<SegmentUsersResponse> => {
+    try {
+      const response = await api.get(`/api/v1/promo/getTargetSegmentUsers?segmentTerm=${segmentTerm}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          success: false,
+          message: error.response?.data?.message || "No target segment users found",
+          total: 0,
+          data: [],
+        };
+      }
+      throw error;
+    }
   },
 };
 

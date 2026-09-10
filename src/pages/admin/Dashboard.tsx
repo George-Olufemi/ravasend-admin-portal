@@ -74,7 +74,8 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 }
 
 function ChannelBadge({ ch }: { ch: string }) {
-  const norm = (ch || "").toLowerCase();
+  // const norm = (ch || "").toLowerCase();
+  const norm = (ch || "");
   let bg = "bg-primary/10 text-primary border-primary/20";
   if (norm.includes("email") || norm.includes("mail")) bg = "bg-blue-500/10 text-blue-400 border-blue-500/20";
   if (norm.includes("push") || norm.includes("notification")) bg = "bg-purple-500/10 text-purple-400 border-purple-500/20";

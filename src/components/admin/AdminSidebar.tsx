@@ -51,7 +51,7 @@ const NAV: NavGroup[] = [
   {
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, url: "/admin" },
-      // { id: "analytics", label: "Analytics", icon: BarChart3, url: "/admin" },
+      { id: "analytics", label: "Analytics", icon: BarChart3, url: "/admin/analytics" },
       { id: "users", label: "Users", icon: Users, url: "/admin/users" },
       { id: "transactions", label: "Transactions", icon: ArrowLeftRight, url: "/admin/transaction" },
       { id: "promo-codes", label: "Promo Codes", icon: Tag, url: "/admin/promocodes" },

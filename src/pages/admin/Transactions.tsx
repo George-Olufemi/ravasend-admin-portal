@@ -508,12 +508,12 @@ const Transactions = () => {
                               : "text-foreground"
                         }`}
                     >
-                      {isDeposit(type) ? "+" : "−"}{ngn(t.amount || 0)}
+                      {isDeposit(type) ? "+" : ""}{ngn(t.amount || 0)}
                     </p>
                   </td>
                   <td className="px-5 py-3.5">
                     {t.fee && t.fee > 0 ? (
-                      <p className="text-[11px] font-mono text-amber-400">−{ngn(t.fee)}</p>
+                      <p className="text-[11px] font-mono text-amber-400">{ngn(t.fee)}</p>
                     ) : (
                       <span className="text-[11px] text-muted-foreground">—</span>
                     )}

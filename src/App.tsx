@@ -20,6 +20,7 @@ import AdminRoles from "./pages/admin/AdminRoles";
 import Campaigns from "./pages/admin/Campaigns";
 import Segments from "./pages/admin/Segments";
 import Competitions from "./pages/admin/Competitions";
+import Analytics from "./pages/admin/Analytics";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
+            <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<Users />} />
             <Route path="transaction" element={<Transactions />} />
             <Route path="promocodes" element={<PromoCodes />} />
