@@ -1,6 +1,7 @@
-import React, { useState } from "react";
-import { Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import React, { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Download, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { analyticsAPI, AnalyticsGraphItem } from "@/lib/api";
 
 function PageHeader({
   title,
@@ -59,60 +60,132 @@ function PurpleBtn({
   disabled?: boolean;
 }) {
   return (
-    <Button
+    <button
       onClick={onClick}
       disabled={disabled}
+      className={`flex items-center justify-center gap-2 rounded-xl text-[12px] font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+        size === "sm" ? "px-3 py-1.5" : "px-4 py-2.5"
+      }`}
+      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
     >
       {children}
-    </Button>
+    </button>
   );
 }
 
-const ANALYTICS_DAILY = Array.from({ length: 31 }, (_, i) => {
-  const d = new Date(2026, 6, 1 + i);
-  const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const signups = Math.floor(80 + Math.random() * 120 + (i > 20 ? 50 : 0));
-  const volume = Math.floor(8_000_000 + Math.random() * 6_000_000 + i * 200_000);
-  const fees = Math.floor(volume * 0.008 + Math.random() * 20000);
-  const txns = Math.floor(300 + Math.random() * 250 + i * 5);
-  return { day, signups, volume, fees, txns };
-});
+const formatNaira = (v: number) => {
+  if (v >= 1_000_000) return `₦${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `₦${(v / 1_000).toFixed(1)}K`;
+  return `₦${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+};
+
+const formatDateLabel = (dateStr: string) => {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+  return dateStr;
+};
 
 export default function AnalyticsPage() {
-  const [startDate, setStartDate] = useState("2026-07-01");
-  const [endDate, setEndDate] = useState("2026-07-30");
+  const [startDate, setStartDate] = useState("2026-06-01");
+  const [endDate, setEndDate] = useState("2026-08-30");
   const [metric, setMetric] = useState<"volume" | "signups" | "fees" | "txns">("volume");
 
-  const filtered = ANALYTICS_DAILY.filter((d) => {
-    const idx = ANALYTICS_DAILY.indexOf(d);
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const base = new Date(2026, 6, 1 + idx);
-    return base >= start && base <= end;
+  const { data: analyticsRes, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["analytics", startDate, endDate],
+    queryFn: () => analyticsAPI.getAnalytics(startDate, endDate),
   });
 
-  const totals = filtered.reduce(
-    (acc, d) => ({
-      volume: acc.volume + d.volume,
-      signups: acc.signups + d.signups,
-      fees: acc.fees + d.fees,
-      txns: acc.txns + d.txns,
-    }),
-    { volume: 0, signups: 0, fees: 0, txns: 0 }
-  );
+  const summary = analyticsRes?.data?.summary ?? {
+    totalTransactionSum: 0,
+    totalUsers: 0,
+    totalTransaction: 0,
+    totalFeesSum: 0,
+  };
+
+  const graph = analyticsRes?.data?.graph ?? {
+    transactionVolume: [],
+    transactionCount: [],
+    newUsers: [],
+    fees: [],
+  };
+
+  const totals: Record<"volume" | "signups" | "fees" | "txns", number> = {
+    volume: summary.totalTransactionSum ?? 0,
+    signups: summary.totalUsers ?? 0,
+    fees: summary.totalFeesSum ?? 0,
+    txns: summary.totalTransaction ?? 0,
+  };
 
   const metricConfig = {
-    volume: { label: "Transaction Volume", color: "#7B3FE4", format: (v: number) => `₦${(v / 1_000_000).toFixed(1)}M` },
+    volume: { label: "Transaction Volume", color: "#7B3FE4", format: formatNaira },
     signups: { label: "New Signups", color: "#34d399", format: (v: number) => v.toLocaleString() },
-    fees: { label: "Fees Collected", color: "#f59e0b", format: (v: number) => `₦${(v / 1000).toFixed(0)}K` },
+    fees: { label: "Fees Collected", color: "#f59e0b", format: formatNaira },
     txns: { label: "Transactions", color: "#60a5fa", format: (v: number) => v.toLocaleString() },
   };
 
   const metricKeys: Array<"volume" | "signups" | "fees" | "txns"> = ["volume", "signups", "fees", "txns"];
 
+  const activeGraphItems: AnalyticsGraphItem[] = useMemo(() => {
+    switch (metric) {
+      case "volume":
+        return graph.transactionVolume || [];
+      case "signups":
+        return graph.newUsers || [];
+      case "fees":
+        return graph.fees || [];
+      case "txns":
+        return graph.transactionCount || [];
+      default:
+        return [];
+    }
+  }, [metric, graph]);
+
+  // Maps for table cross-referencing
+  const txnsByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    (graph.transactionCount || []).forEach((item) => {
+      map[item.date] = item.total;
+    });
+    return map;
+  }, [graph.transactionCount]);
+
+  const feesByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    (graph.fees || []).forEach((item) => {
+      map[item.date] = item.total;
+    });
+    return map;
+  }, [graph.fees]);
+
   const handleExportCSV = () => {
-    const headers = ["Day", "Signups", "Volume (NGN)", "Fees (NGN)", "Transactions"];
-    const rows = filtered.map((d) => [d.day, d.signups, d.volume, d.fees, d.txns]);
+    // Collect all dates across graph metrics
+    const allDates = Array.from(
+      new Set([
+        ...(graph.transactionVolume || []).map((x) => x.date),
+        ...(graph.transactionCount || []).map((x) => x.date),
+        ...(graph.newUsers || []).map((x) => x.date),
+        ...(graph.fees || []).map((x) => x.date),
+      ])
+    ).sort();
+
+    const volMap: Record<string, number> = {};
+    (graph.transactionVolume || []).forEach((x) => (volMap[x.date] = x.total));
+    const userMap: Record<string, number> = {};
+    (graph.newUsers || []).forEach((x) => (userMap[x.date] = x.total));
+
+    const headers = ["Date", "Transaction Volume (NGN)", "Transactions", "New Signups", "Fees (NGN)"];
+    const rows = allDates.map((date) => [
+      date,
+      volMap[date] ?? 0,
+      txnsByDate[date] ?? 0,
+      userMap[date] ?? 0,
+      feesByDate[date] ?? 0,
+    ]);
+
     const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -124,6 +197,14 @@ export default function AnalyticsPage() {
     document.body.removeChild(link);
   };
 
+  const topDaysByVolume = useMemo(() => {
+    return [...(graph.transactionVolume || [])].sort((a, b) => b.total - a.total).slice(0, 7);
+  }, [graph.transactionVolume]);
+
+  const topDaysBySignups = useMemo(() => {
+    return [...(graph.newUsers || [])].sort((a, b) => b.total - a.total).slice(0, 7);
+  }, [graph.newUsers]);
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-7">
       <PageHeader title="Analytics" subtitle="Transaction trends, growth metrics, and revenue insights" />
@@ -131,24 +212,25 @@ export default function AnalyticsPage() {
       {/* Date range + metric picker */}
       <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div className="flex items-center gap-3">
-          <DateInput value={startDate} onChange={setStartDate} />
-          <span className="text-muted-foreground text-[11px]">→</span>
-          <DateInput value={endDate} min={startDate} onChange={setEndDate} />
+          <DateInput value={startDate} onChange={setStartDate} label="Start Date" />
+          <span className="text-muted-foreground text-[11px] self-end mb-2">→</span>
+          <DateInput value={endDate} min={startDate} onChange={setEndDate} label="End Date" />
         </div>
-        <div className="flex items-center gap-1 bg-white/5 border border-border rounded-xl p-1 overflow-x-auto">
+        <div className="flex items-center gap-1 bg-white/5 border border-border rounded-xl p-1 overflow-x-auto self-end">
           {metricKeys.map((m) => (
             <button
               key={m}
               onClick={() => setMetric(m)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all capitalize ${metric === m ? "text-white" : "text-muted-foreground hover:text-foreground"
-                }`}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all capitalize ${
+                metric === m ? "text-white" : "text-muted-foreground hover:text-foreground"
+              }`}
               style={
                 metric === m
                   ? {
-                    background: metricConfig[m].color + "33",
-                    color: metricConfig[m].color,
-                    outline: `1px solid ${metricConfig[m].color}44`,
-                  }
+                      background: metricConfig[m].color + "33",
+                      color: metricConfig[m].color,
+                      outline: `1px solid ${metricConfig[m].color}44`,
+                    }
                   : {}
               }
             >
@@ -158,23 +240,46 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      {isError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="text-red-400 shrink-0" size={18} />
+            <div>
+              <p className="text-[13px] font-semibold text-red-300">Failed to load analytics data</p>
+              <p className="text-[11px] text-red-400/80">{(error as any)?.response?.data?.message || "Error connecting to the analytics API."}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-red-300 hover:text-white bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Summary stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
         {metricKeys.map((m) => (
           <button
             key={m}
             onClick={() => setMetric(m)}
-            className={`p-5 rounded-xl border transition-all text-left ${metric === m ? "border-primary/30 bg-primary/5" : "border-border bg-white/[0.025] hover:border-primary/20"
-              }`}
+            className={`p-5 rounded-xl border transition-all text-left ${
+              metric === m ? "border-primary/30 bg-primary/5" : "border-border bg-white/[0.025] hover:border-primary/20"
+            }`}
           >
             <p className="text-[11px] text-muted-foreground mb-1">{metricConfig[m].label}</p>
-            <p
-              className="text-[22px] font-bold font-mono"
-              style={{ color: metric === m ? metricConfig[m].color : undefined }}
-            >
-              {metricConfig[m].format(totals[m])}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{filtered.length} days selected</p>
+            {isLoading ? (
+              <div className="h-7 w-24 bg-white/10 animate-pulse rounded my-1" />
+            ) : (
+              <p
+                className="text-[22px] font-bold font-mono"
+                style={{ color: metric === m ? metricConfig[m].color : undefined }}
+              >
+                {metricConfig[m].format(totals[m])}
+              </p>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-0.5">Total for selected period</p>
           </button>
         ))}
       </div>
@@ -186,32 +291,38 @@ export default function AnalyticsPage() {
             <p className="text-[13px] font-bold text-foreground">{metricConfig[metric].label}</p>
             <p className="text-[11px] text-muted-foreground">Daily breakdown for selected period</p>
           </div>
-          <PurpleBtn onClick={handleExportCSV}>
+          <PurpleBtn onClick={handleExportCSV} disabled={isLoading || isError}>
             <Download size={12} /> Export CSV
           </PurpleBtn>
         </div>
-        {filtered.length > 0 ? (
-          <div className="h-56 flex items-end gap-0.5">
-            {filtered.map((d, i) => {
-              const vals = filtered.map((x) => x[metric]);
-              const max = Math.max(...vals);
-              const h = max > 0 ? (d[metric] / max) * 100 : 0;
+
+        {isLoading ? (
+          <div className="h-56 flex items-center justify-center text-[12px] text-muted-foreground gap-2">
+            <Loader2 className="animate-spin text-primary" size={18} /> Loading analytics chart...
+          </div>
+        ) : activeGraphItems.length > 0 ? (
+          <div className="h-56 flex items-end gap-1.5 overflow-x-auto pt-6 pb-2">
+            {activeGraphItems.map((d, i) => {
+              const maxVal = Math.max(...activeGraphItems.map((x) => x.total), 1);
+              const h = maxVal > 0 ? (d.total / maxVal) * 100 : 0;
+              const dateLabel = formatDateLabel(d.date);
+
               return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 group cursor-default">
+                <div key={d.date || i} className="flex-1 min-w-[20px] flex flex-col items-center gap-1 group cursor-default">
                   <div className="relative w-full flex justify-center">
-                    <div className="absolute bottom-full mb-1 hidden group-hover:flex bg-zinc-900 border border-border rounded-lg px-2 py-1 text-[10px] text-foreground whitespace-nowrap z-10 flex-col items-center">
-                      <span className="font-bold">{metricConfig[metric].format(d[metric])}</span>
-                      <span className="text-muted-foreground">{d.day}</span>
+                    <div className="absolute bottom-full mb-1 hidden group-hover:flex bg-zinc-900 border border-border rounded-lg px-2 py-1 text-[10px] text-foreground whitespace-nowrap z-10 flex-col items-center shadow-xl">
+                      <span className="font-bold">{metricConfig[metric].format(d.total)}</span>
+                      <span className="text-muted-foreground">{dateLabel}</span>
                     </div>
                     <div
-                      className="w-full rounded-t-sm transition-all"
+                      className="w-full rounded-t-sm transition-all hover:opacity-80"
                       style={{
-                        height: `${Math.max(h * 1.8, 4)}px`,
+                        height: `${Math.max(h * 1.8, 6)}px`,
                         background: metricConfig[metric].color + (metric === "volume" ? "cc" : "99"),
                       }}
                     />
                   </div>
-                  {filtered.length <= 14 && <span className="text-[8px] text-muted-foreground">{d.day.split(" ")[1]}</span>}
+                  <span className="text-[8px] text-muted-foreground truncate max-w-full">{dateLabel}</span>
                 </div>
               );
             })}
@@ -232,27 +343,38 @@ export default function AnalyticsPage() {
           </div>
           <table className="w-full">
             <tbody className="divide-y divide-border">
-              {[...filtered]
-                .sort((a, b) => b.volume - a.volume)
-                .slice(0, 7)
-                .map((d, i) => (
-                  <tr key={d.day} className="hover:bg-white/[0.02] transition-colors">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={3} className="px-5 py-6 text-center text-[12px] text-muted-foreground">
+                    <Loader2 className="animate-spin inline mr-2" size={14} /> Loading volume data...
+                  </td>
+                </tr>
+              ) : topDaysByVolume.length > 0 ? (
+                topDaysByVolume.map((d, i) => (
+                  <tr key={d.date} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-muted-foreground w-4">{i + 1}</span>
-                        <span className="text-[12px] font-semibold text-foreground">{d.day}</span>
+                        <span className="text-[12px] font-semibold text-foreground">{formatDateLabel(d.date)}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3 text-right">
                       <span className="text-[12px] font-mono font-bold text-primary">
-                        ₦{(d.volume / 1_000_000).toFixed(2)}M
+                        {formatNaira(d.total)}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <span className="text-[10px] text-muted-foreground">{d.txns} txns</span>
+                      <span className="text-[10px] text-muted-foreground">{txnsByDate[d.date] ?? 0} txns</span>
                     </td>
                   </tr>
-                ))}
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="px-5 py-6 text-center text-[12px] text-muted-foreground">
+                    No volume records available
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -264,25 +386,38 @@ export default function AnalyticsPage() {
           </div>
           <table className="w-full">
             <tbody className="divide-y divide-border">
-              {[...filtered]
-                .sort((a, b) => b.signups - a.signups)
-                .slice(0, 7)
-                .map((d, i) => (
-                  <tr key={d.day} className="hover:bg-white/[0.02] transition-colors">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={3} className="px-5 py-6 text-center text-[12px] text-muted-foreground">
+                    <Loader2 className="animate-spin inline mr-2" size={14} /> Loading signup data...
+                  </td>
+                </tr>
+              ) : topDaysBySignups.length > 0 ? (
+                topDaysBySignups.map((d, i) => (
+                  <tr key={d.date} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-muted-foreground w-4">{i + 1}</span>
-                        <span className="text-[12px] font-semibold text-foreground">{d.day}</span>
+                        <span className="text-[12px] font-semibold text-foreground">{formatDateLabel(d.date)}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <span className="text-[12px] font-mono font-bold text-emerald-400">+{d.signups}</span>
+                      <span className="text-[12px] font-mono font-bold text-emerald-400">+{d.total}</span>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <span className="text-[10px] text-muted-foreground">₦{(d.fees / 1000).toFixed(0)}K fees</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatNaira(feesByDate[d.date] ?? 0)} fees
+                      </span>
                     </td>
                   </tr>
-                ))}
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="px-5 py-6 text-center text-[12px] text-muted-foreground">
+                    No signup records available
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

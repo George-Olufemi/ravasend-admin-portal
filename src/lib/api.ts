@@ -957,4 +957,38 @@ export const auditAPI = {
     const response = await api.get("/api/v1/auditlogs/audit-logs?search=" + query);
     return response.data;
   }
+};
+
+export interface AnalyticsGraphItem {
+  date: string;
+  total: number;
 }
+
+export interface AnalyticsSummary {
+  totalTransactionSum: number;
+  totalUsers: number;
+  totalTransaction: number;
+  totalFeesSum: number;
+}
+
+export interface AnalyticsGraph {
+  transactionVolume: AnalyticsGraphItem[];
+  transactionCount: AnalyticsGraphItem[];
+  newUsers: AnalyticsGraphItem[];
+  fees: AnalyticsGraphItem[];
+}
+
+export interface AnalyticsResponse {
+  status: boolean;
+  data: {
+    summary: AnalyticsSummary;
+    graph: AnalyticsGraph;
+  };
+}
+
+export const analyticsAPI = {
+  getAnalytics: async (startDate: string, endDate: string): Promise<AnalyticsResponse> => {
+    const response = await api.get(`/api/v1/analytics/get-analytics?startDate=${startDate}&endDate=${endDate}`);
+    return response.data;
+  },
+};
