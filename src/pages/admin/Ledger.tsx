@@ -12,7 +12,14 @@ import {
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-react";
-import { ledgerAPI, LedgerEntry, LedgerResponse, UserLedgerEntry, TotalAmountResponse } from "@/lib/api";
+import {
+	ledgerAPI,
+	LedgerEntry,
+	LedgerResponse,
+	UserLedgerEntry,
+	LedgerReconciliationResponse,
+	UserLedgerResponse,
+} from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -44,9 +51,10 @@ const getUserEmail = (entry: LedgerEntry): string => {
 	return typeof entry.userId === "string" ? entry.userId : "—";
 };
 
-function TypeBadge({ type }: { type: string }) {
-	const norm = (type || "").toUpperCase();
-	const isDebit = norm.startsWith("DEBIT");
+function TypeBadge({ type, description }: { type?: string; description?: string }) {
+	const normType = (type || "").toUpperCase();
+	const normDesc = (description || "").toUpperCase();
+	const isDebit = normType.startsWith("DEBIT") || normDesc.startsWith("DEBIT");
 	if (isDebit) {
 		return (
 			<Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] gap-1 font-bold">
@@ -102,27 +110,15 @@ const Ledger = () => {
 		queryFn: ledgerAPI.getAll,
 	});
 
-	const { data: creditsData } = useQuery<TotalAmountResponse>({
-		queryKey: ["ledger-credits"],
-		queryFn: ledgerAPI.getAllCredits,
+	const {
+		data: reconciliationData,
+		isLoading: isReconciliationLoading,
+	} = useQuery<LedgerReconciliationResponse>({
+		queryKey: ["ledger-reconciliation"],
+		queryFn: ledgerAPI.getReconciliation,
 	});
 
-	const { data: debitsData } = useQuery<TotalAmountResponse>({
-		queryKey: ["ledger-debits"],
-		queryFn: ledgerAPI.getAllDebits,
-	});
-
-	const { data: netData } = useQuery<TotalAmountResponse>({
-		queryKey: ["ledger-net"],
-		queryFn: ledgerAPI.getLedgerNet,
-	});
-
-	const { data: userWalletsData } = useQuery<TotalAmountResponse>({
-		queryKey: ["ledger-user-wallets"],
-		queryFn: ledgerAPI.getAllUserWallet,
-	});
-
-	const { data: userLedgerData, isLoading: userLedgerLoading } = useQuery({
+	const { data: userLedgerData, isLoading: userLedgerLoading } = useQuery<UserLedgerResponse>({
 		queryKey: ["user-ledger", selectedUserId],
 		queryFn: () => ledgerAPI.viewuserledger(selectedUserId!),
 		enabled: !!selectedUserId,
@@ -131,12 +127,12 @@ const Ledger = () => {
 	const entries: LedgerEntry[] = useMemo(() => ledgerData?.data || [], [ledgerData]);
 	const userEntries: UserLedgerEntry[] = useMemo(() => userLedgerData?.data || [], [userLedgerData]);
 
-	const totalCreditsIn = Number(creditsData?.data?.totalAmount || 0);
-	const totalCreditsOut = Number(debitsData?.data?.totalAmount || 0);
-	const netBalance = Number(netData?.data?.totalAmount || 0);
-	const actualNetBalance = Number(userWalletsData?.data?.totalAmount || 0);
+	const totalCreditsIn = reconciliationData?.data?.totalCredits ?? 0;
+	const totalCreditsOut = reconciliationData?.data?.totalDebits ?? 0;
+	const netBalance = reconciliationData?.data?.ledgerNet ?? 0;
+	const actualNetBalance = reconciliationData?.data?.actualNet ?? 0;
 
-	const reconciliationGap = netBalance - actualNetBalance;
+	const reconciliationGap = reconciliationData?.data?.reconciliationGap ?? (netBalance - actualNetBalance);
 	const isReconciled = Math.abs(reconciliationGap) < 1;
 
 	const filtered = useMemo(() => {
@@ -146,8 +142,9 @@ const Ledger = () => {
 			const email = getUserEmail(e).toLowerCase();
 			const id = getUserId(e).toLowerCase();
 			const type = (e.type || "").toLowerCase();
+			const desc = (e.description || "").toLowerCase();
 			const curr = (e.currency || "").toLowerCase();
-			return email.includes(s) || id.includes(s) || type.includes(s) || curr.includes(s);
+			return email.includes(s) || id.includes(s) || type.includes(s) || desc.includes(s) || curr.includes(s);
 		});
 	}, [entries, search]);
 
@@ -163,27 +160,36 @@ const Ledger = () => {
 	// ── Per-User Summary ────────────────────────────────────────────────────
 
 	const userCreditsIn = useMemo(() => {
+		if (userLedgerData?.totals?.credit !== undefined) {
+			return (userLedgerData.totals.credit || 0) + (userLedgerData.totals.deposit || 0);
+		}
 		return userEntries
 			.filter((e) => {
-				const t = (e.type || "").toUpperCase();
-				return (t.startsWith("CREDIT") || t.startsWith("DEPOSIT")) && (e.currency?.toUpperCase() === "NGN" || !e.currency);
+				const t = ((e.type || "") + " " + (e.description || "")).toUpperCase();
+				return (t.includes("CREDIT") || t.includes("DEPOSIT")) && (e.currency?.toUpperCase() === "NGN" || !e.currency);
 			})
 			.reduce((acc, e) => acc + (e.amount || 0), 0);
-	}, [userEntries]);
+	}, [userLedgerData, userEntries]);
 
 	const userCreditsOut = useMemo(() => {
+		if (userLedgerData?.totals?.debit !== undefined) {
+			return userLedgerData.totals.debit || 0;
+		}
 		return userEntries
 			.filter((e) => {
-				const t = (e.type || "").toUpperCase();
-				return t.startsWith("DEBIT") && (e.currency?.toUpperCase() === "NGN" || !e.currency);
+				const t = ((e.type || "") + " " + (e.description || "")).toUpperCase();
+				return t.includes("DEBIT") && (e.currency?.toUpperCase() === "NGN" || !e.currency);
 			})
 			.reduce((acc, e) => acc + Math.abs(e.amount || 0), 0);
-	}, [userEntries]);
+	}, [userLedgerData, userEntries]);
 
 	const userBalance = useMemo(() => {
+		if (userLedgerData?.userBalance !== undefined) {
+			return userLedgerData.userBalance;
+		}
 		if (userEntries.length === 0) return 0;
 		return userEntries[0]?.balanceAfter ?? 0;
-	}, [userEntries]);
+	}, [userLedgerData, userEntries]);
 
 	// ── CSV Export ──────────────────────────────────────────────────────────
 
@@ -419,7 +425,9 @@ const Ledger = () => {
 										const uid = getUserId(e);
 										const email = getUserEmail(e);
 										const normType = (e.type || "").toUpperCase();
-										const isDebit = normType.startsWith("DEBIT");
+										const normDesc = (e.description || "").toUpperCase();
+										const isDebit = normType.startsWith("DEBIT") || normDesc.startsWith("DEBIT");
+										const displayDesc = e.description || e.type;
 
 										return (
 											<tr
@@ -440,11 +448,11 @@ const Ledger = () => {
 													<p className="text-[10px] text-muted-foreground font-mono">ID: {e._id?.slice(-8) || uid?.slice(-8)}</p>
 												</td>
 												<td className="px-5 py-3.5">
-													<TypeBadge type={e.type} />
+													<TypeBadge type={e.type} description={e.description} />
 												</td>
 												<td className="px-5 py-3.5 max-w-[260px]">
-													<p className="text-[12px] text-muted-foreground truncate" title={e.type}>
-														{e.type}
+													<p className="text-[12px] text-muted-foreground truncate" title={displayDesc}>
+														{displayDesc}
 													</p>
 												</td>
 												<td className={`px-5 py-3.5 text-[13px] font-mono font-bold ${isDebit ? "text-red-400" : "text-emerald-400"}`}>
@@ -553,7 +561,9 @@ const Ledger = () => {
 							) : (
 								userEntries.map((entry) => {
 									const normType = (entry.type || "").toUpperCase();
-									const isDebit = normType.startsWith("DEBIT");
+									const normDesc = (entry.description || "").toUpperCase();
+									const isDebit = normType.startsWith("DEBIT") || normDesc.startsWith("DEBIT");
+									const displayDesc = entry.description || entry.type;
 
 									return (
 										<div key={entry._id} className="bg-card border border-border rounded-xl p-4">
@@ -573,7 +583,7 @@ const Ledger = () => {
 													{entry.currency === "USDC" ? `${entry.amount} USDC` : ngn(Math.abs(entry.amount))}
 												</span>
 											</div>
-											<p className="text-[11px] text-muted-foreground leading-relaxed mb-3">{entry.type}</p>
+											<p className="text-[11px] text-muted-foreground leading-relaxed mb-3">{displayDesc}</p>
 											<div className="flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/60 pt-2.5 mt-2">
 												<span>Before: {ngn(entry.balanceBefore)}</span>
 												<span>After: {ngn(entry.balanceAfter)}</span>

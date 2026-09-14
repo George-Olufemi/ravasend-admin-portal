@@ -827,7 +827,7 @@ function AdminRolesPage() {
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 type="text"
-                className="w-full bg-white/5 border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground focus:outline-none focus:border-primary/50 font-mono text-[12px]"
+                className="w-full bg-white/5 border border-border rounded-lg px-3 py-2.5 text-md text-foreground focus:outline-none focus:border-primary/50 font-mono text-md"
                 placeholder="e.g. Acces0091"
               />
             </div>

@@ -250,22 +250,38 @@ export interface LedgerEntry {
   userId: {
     _id: string;
     email: string;
-  };
+  } | string;
   transaction: string;
   type: string;
+  description?: string;
   amount: number;
   balanceBefore: number;
   balanceAfter: number;
   createdAt: string;
   updatedAt: string;
-  currency: string;
-  cryptoAmount: number;
-  __v: number;
+  currency?: string;
+  cryptoAmount?: number;
+  __v?: number;
 }
 
 export interface LedgerResponse {
   success: boolean;
+  message?: string;
   data: LedgerEntry[];
+}
+
+export interface LedgerReconciliation {
+  totalCredits: number;
+  totalDebits: number;
+  ledgerNet: number;
+  actualNet: number;
+  reconciliationGap: number;
+}
+
+export interface LedgerReconciliationResponse {
+  success: boolean;
+  message?: string;
+  data: LedgerReconciliation;
 }
 
 export interface TotalAmountResponse {
@@ -278,9 +294,13 @@ export interface TotalAmountResponse {
 
 export interface UserLedgerEntry {
   _id: string;
-  userId: string;
+  userId: {
+    _id: string;
+    email: string;
+  } | string;
   transaction: string;
   type: string;
+  description?: string;
   amount: number;
   balanceBefore: number;
   balanceAfter: number;
@@ -288,12 +308,22 @@ export interface UserLedgerEntry {
   updatedAt: string;
   currency?: string;
   cryptoAmount?: number;
-  __v: number;
+  __v?: number;
+}
+
+export interface UserLedgerTotals {
+  deposit?: number;
+  credit?: number;
+  debit?: number;
+  totalCryptoDeposit?: number;
 }
 
 export interface UserLedgerResponse {
   success: boolean;
+  message?: string;
   data: UserLedgerEntry[];
+  userBalance?: number;
+  totals?: UserLedgerTotals;
 }
 
 export interface AuditUser {
@@ -597,8 +627,12 @@ export const ledgerAPI = {
     return response.data;
   },
   viewuserledger: async (id: string): Promise<UserLedgerResponse> => {
-    const response = await api.get(`/api/v1/ledger/getLedger/${id}`);
+    const response = await api.get(`/api/v1/ledger/getUserAggregateLedger/${id}`);
     // console.log("response: ", response);
+    return response.data;
+  },
+  getReconciliation: async (): Promise<LedgerReconciliationResponse> => {
+    const response = await api.get("/api/v1/admin/getLedgerReconciliation");
     return response.data;
   },
   getAllCredits: async (): Promise<TotalAmountResponse> => {
