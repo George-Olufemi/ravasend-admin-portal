@@ -229,20 +229,43 @@ export interface ReferralDetailsResponse {
 
 export interface Fee {
   _id: string;
-  feeName: string;
+  ruleName?: string;
+  category?: string;
+  applicationType?: string;
+  currency?: string;
+  feeType?: string;
   amount: number;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
+  percentage?: string;
+  maximumAmount?: string;
+  assets?: string[];
+  corridors?: string[];
+  banks?: string[];
+  services?: string[];
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
 }
 
 export interface FeeResponse {
-  message: string;
+  message?: string;
+  success?: boolean;
   data: Fee[];
 }
 
 export interface CreateFeeData {
-  amount: string; // keep as string for form input, convert when sending
+  amount?: string | number;
+  ruleName?: string;
+  category?: string;
+  applicationType?: string;
+  currency?: string;
+  feeType?: string;
+  percentage?: string;
+  maximumAmount?: string;
+  assets?: string[] | string;
+  corridors?: string[] | string;
+  banks?: string[] | string;
+  services?: string[] | string;
 }
 
 export interface LedgerEntry {
@@ -589,28 +612,42 @@ export const feesAPI = {
     }
   },
 
-  create: async (data: CreateFeeData): Promise<any> => {
-    const response = await api.post("/api/v1/receive/createFee", {
-      amount: Number(data.amount),
-    });
+  getAllBillFees: async (): Promise<FeeResponse> => {
+    try {
+      const response = await api.get("/api/v1/receive/getBillFee");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          message: error.response?.data?.message || "No bill fees found",
+          data: [],
+        };
+      }
+      throw error;
+    }
+  },
+
+  create: async (data: any): Promise<any> => {
+    const response = await api.post("/api/v1/receive/createFee", data);
     return response.data;
   },
 
-  createForexFee: async (data: CreateFeeData): Promise<any> => {
-    const response = await api.post("/api/v1/receive/createForexFee", {
-      amount: Number(data.amount),
-    });
+  createForexFee: async (data: any): Promise<any> => {
+    const response = await api.post("/api/v1/receive/createForexFee", data);
     return response.data;
   },
 
-  createWithdrawalFee: async (data: CreateFeeData): Promise<any> => {
-    const response = await api.post("/api/v1/receive/createWithdrawalFee", {
-      amount: Number(data.amount),
-    });
+  createWithdrawalFee: async (data: any): Promise<any> => {
+    const response = await api.post("/api/v1/receive/createWithdrawalFee", data);
     return response.data;
   },
 
-  update: async (id: string, data: Partial<CreateFeeData>): Promise<any> => {
+  createBillFee: async (data: any): Promise<any> => {
+    const response = await api.post("/api/v1/receive/createBillFee", data);
+    return response.data;
+  },
+
+  update: async (id: string, data: any): Promise<any> => {
     const response = await api.put(`/api/v1/receive/updateFee/${id}`, data);
     return response.data;
   },
