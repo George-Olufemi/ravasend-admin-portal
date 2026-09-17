@@ -130,85 +130,27 @@ interface Criterion {
 }
 
 const SEG_FIELDS = [
-	{
-		key: "nairaWallet",
-		label: "Naira Wallet Balance (₦)",
-		type: "currency",
-	},
-
-	{
-		key: "dollarWallet",
-		label: "Dollar Wallet Balance ($)",
-		type: "currency",
-	},
-
-	{
-		key: "isFirstDeposit",
-		label: "Has Made First Deposit",
-		type: "boolean",
-	},
-
-	{
-		key: "isFirstConversion",
-		label: "Has Made First Conversion",
-		type: "boolean",
-	},
-
-	{
-		key: "kycLevel",
-		label: "KYC Verification Level",
-		type: "enum",
-	},
-
-	{
-		key: "depositCount",
-		label: "Number of Deposits",
-		type: "number",
-	},
-
-	{
-		key: "referralCount",
-		label: "Number of Referrals",
-		type: "number",
-	},
-
-	{
-		key: "totalDeposited",
-		label: "Total Amount Deposited",
-		type: "currency",
-	},
-
-	{
-		key: "daySinceSignUp",
-		label: "Days Since Sign Up",
-		type: "number",
-	},
-
-	{
-		key: "daySinceLastTransact",
-		label: "Days Since Last Transaction",
-		type: "number",
-	},
-
-	{
-		key: "country",
-		label: "Country",
-		type: "enum",
-	},
-	// {
-	// 	key: "accountStatus",
-	// 	label: "Account Status",
-	// 	type: "enum",
-	// },
+	{ key: "nairaWallet", label: "Naira Wallet Balance (₦)", type: "currency" },
+	{ key: "dollarWallet", label: "Dollar Wallet Balance ($)", type: "currency" },
+	{ key: "isFirstDeposit", label: "Is First Deposit", type: "boolean" },
+	{ key: "isFirstConversion", label: "Is First Conversion", type: "boolean" },
+	{ key: "kycLevel", label: "KYC Level", type: "enum" },
+	{ key: "depositCount", label: "Deposit Count", type: "number" },
+	{ key: "referralCount", label: "Referral Count", type: "number" },
+	{ key: "totalDeposited", label: "Total Deposited Amount", type: "currency" },
+	{ key: "daySinceSignUp", label: "Days Since Sign Up", type: "number" },
+	{ key: "daySinceLastTransact", label: "Days Since Last Transaction", type: "number" },
+	{ key: "country", label: "Country", type: "enum" },
+	{ key: "accountStatus", label: "Account Status", type: "enum" },
 ];
 
 const SEG_ENUM_VALUES: Record<string, string[]> = {
 	kycLevel: ["0", "1", "2", "3"],
-	tier: ["Tier 1", "Tier 2", "Tier 3", "VIP"],
-	status: ["Active", "Inactive", "Suspended", "Pending"],
+	country: ["Nigeria", "Ghana", "Kenya", "Uganda", "United Kingdom", "United States", "Canada"],
+	accountStatus: ["Active", "Inactive", "Suspended", "Pending", "Flagged"],
 };
 
-const SEG_OPERATORS = ["=", "!=", ">", "<", ">=", "<=", "between", "is set", "is not set"];
+const SEG_OPERATORS = ["=", "!=", ">", "<", ">=", "<=", "between"];
 
 const Segments = () => {
 	const navigate = useNavigate();
@@ -222,35 +164,85 @@ const Segments = () => {
 	const [newDesc, setNewDesc] = useState("");
 	const [logic, setLogic] = useState<"AND" | "OR">("AND");
 	const [criteria, setCriteria] = useState<Criterion[]>([
-		{ id: "1", field: "kycLevel", operator: "=", value: "1" },
+		{ id: "1", field: "nairaWallet", operator: ">", value: "0" },
 	]);
 	const [deletingSegmentId, setDeletingSegmentId] = useState<string | null>(null);
 
-	const primaryCriterion = criteria[0];
+	// Fetch users based on selected conditions with AND/OR logic evaluation
+	const { data: criteriaUsersData, isLoading: isCriteriaLoading } = useQuery({
+		queryKey: [
+			"segment-users-multi",
+			criteria.map((c) => `${c.field}:${c.operator}:${c.value}:${c.valueB || ""}`).join("|"),
+			logic,
+		],
+		queryFn: async () => {
+			const validCriteria = criteria.filter((c) => Boolean(c.field) && c.value !== "");
+			if (validCriteria.length === 0) {
+				return { emails: [], total: 0 };
+			}
 
-	// Fetch users based on selected condition
-	const { data: segmentUsersResponse } = useQuery({
-		queryKey: ["segment-users", primaryCriterion?.field, primaryCriterion?.value],
-		queryFn: () => segmentAPI.getSegmentUsers(primaryCriterion?.field || "kycLevel", primaryCriterion?.value || "1"),
-		enabled: showBuilder && Boolean(primaryCriterion?.field),
+			const results = await Promise.all(
+				validCriteria.map((c) =>
+					segmentAPI.getSegmentUsers(
+						c.field,
+						c.operator === "between" && c.valueB ? `${c.value},${c.valueB}` : c.value,
+						c.operator
+					)
+				)
+			);
+
+			const emailSets = results.map((res) => {
+				const users = res?.data || [];
+				return new Set(users.map((u: any) => u.email).filter(Boolean));
+			});
+
+			if (emailSets.length === 0) return { emails: [], total: 0 };
+
+			let combinedEmails: string[] = [];
+
+			if (logic === "AND") {
+				const firstSet = Array.from(emailSets[0]);
+				combinedEmails = firstSet.filter((email) =>
+					emailSets.every((set) => set.has(email))
+				);
+			} else {
+				const unionSet = new Set<string>();
+				emailSets.forEach((set) => set.forEach((email) => unionSet.add(email)));
+				combinedEmails = Array.from(unionSet);
+			}
+
+			return {
+				emails: combinedEmails,
+				total: combinedEmails.length,
+			};
+		},
+		enabled: showBuilder && criteria.length > 0,
 	});
 
-	const estimatedCount = segmentUsersResponse?.total ?? (segmentUsersResponse?.data ? segmentUsersResponse.data.length : 0);
-
-	const fetchedEmails = useMemo(() => {
-		return (segmentUsersResponse?.data || []).map((u) => u.email).filter(Boolean);
-	}, [segmentUsersResponse]);
+	const estimatedCount = criteriaUsersData?.total ?? 0;
+	const fetchedEmails = criteriaUsersData?.emails ?? [];
 
 	const addCriterion = () => {
 		setCriteria((prev) => [
 			...prev,
-			{ id: String(Date.now()), field: "kycLevel", operator: "=", value: "0" },
+			{ id: String(Date.now()), field: "nairaWallet", operator: ">", value: "0" },
 		]);
 	};
 
 	const updateCriterion = (id: string, patch: Partial<Criterion>) => {
 		setCriteria((prev) =>
-			prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
+			prev.map((c) => {
+				if (c.id !== id) return c;
+				const updated = { ...c, ...patch };
+
+				if (updated.field === "isFirstDeposit" || updated.field === "isFirstConversion") {
+					updated.operator = "=";
+					if (updated.value !== "true" && updated.value !== "false") {
+						updated.value = "true";
+					}
+				}
+				return updated;
+			})
 		);
 	};
 
@@ -648,10 +640,10 @@ const Segments = () => {
 						<div className="space-y-2">
 							{criteria.map((c, i) => {
 								const fieldDef = SEG_FIELDS.find((f) => f.key === c.field);
+								const isBoolean = c.field === "isFirstDeposit" || c.field === "isFirstConversion";
 								const isEnum = fieldDef?.type === "enum";
 								const enumVals = isEnum ? SEG_ENUM_VALUES[c.field] || [] : [];
 								const isBetween = c.operator === "between";
-								const noValue = c.operator === "is set" || c.operator === "is not set";
 								return (
 									<div key={c.id}>
 										{i > 0 && (
@@ -672,9 +664,16 @@ const Segments = () => {
 											{/* Field selector */}
 											<select
 												value={c.field}
-												onChange={(e) =>
-													updateCriterion(c.id, { field: e.target.value, operator: "=", value: "" })
-												}
+												onChange={(e) => {
+													const nextField = e.target.value;
+													const isNextBool = nextField === "isFirstDeposit" || nextField === "isFirstConversion";
+													const isNextEnum = SEG_FIELDS.find((f) => f.key === nextField)?.type === "enum";
+													updateCriterion(c.id, {
+														field: nextField,
+														operator: "=",
+														value: isNextBool ? "true" : isNextEnum ? (SEG_ENUM_VALUES[nextField]?.[0] || "") : "",
+													});
+												}}
 												className="flex-1 min-w-[140px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
 											>
 												{SEG_FIELDS.map((f) => (
@@ -683,41 +682,63 @@ const Segments = () => {
 													</option>
 												))}
 											</select>
-											{/* Operator */}
-											<select
-												value={c.operator}
-												onChange={(e) => updateCriterion(c.id, { operator: e.target.value })}
-												className="w-28 bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-primary font-bold focus:outline-none focus:border-primary/50"
-											>
-												{SEG_OPERATORS.map((op) => (
-													<option key={op} value={op}>
-														{op}
-													</option>
-												))}
-											</select>
-											{/* Value */}
-											{!noValue &&
-												(isEnum ? (
-													<select
-														value={c.value}
-														onChange={(e) => updateCriterion(c.id, { value: e.target.value })}
-														className="flex-1 min-w-[100px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
-													>
-														{enumVals.map((v) => (
-															<option key={v} value={v}>
-																{v}
-															</option>
-														))}
-													</select>
-												) : (
-													<input
-														value={c.value}
-														onChange={(e) => updateCriterion(c.id, { value: e.target.value })}
-														placeholder={fieldDef?.type === "currency" ? "e.g. 5000" : "Value"}
-														className="flex-1 min-w-[80px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground font-mono focus:outline-none focus:border-primary/50"
-													/>
-												))}
-											{isBetween && !noValue && (
+
+											{/* EqualSign / Operator */}
+											{isBoolean ? (
+												<select
+													value="="
+													disabled
+													className="w-28 bg-background/50 border border-border rounded-lg px-2.5 py-2 text-[12px] text-muted-foreground font-bold opacity-60 cursor-not-allowed focus:outline-none"
+												>
+													<option value="=">=</option>
+												</select>
+											) : (
+												<select
+													value={c.operator}
+													onChange={(e) => updateCriterion(c.id, { operator: e.target.value })}
+													className="w-28 bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-primary font-bold focus:outline-none focus:border-primary/50"
+												>
+													{SEG_OPERATORS.map((op) => (
+														<option key={op} value={op}>
+															{op}
+														</option>
+													))}
+												</select>
+											)}
+
+											{/* Value input / dropdown */}
+											{isBoolean ? (
+												<select
+													value={c.value || "true"}
+													onChange={(e) => updateCriterion(c.id, { value: e.target.value })}
+													className="flex-1 min-w-[100px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground font-mono focus:outline-none focus:border-primary/50"
+												>
+													<option value="true">true</option>
+													<option value="false">false</option>
+												</select>
+											) : isEnum ? (
+												<select
+													value={c.value}
+													onChange={(e) => updateCriterion(c.id, { value: e.target.value })}
+													className="flex-1 min-w-[100px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground focus:outline-none focus:border-primary/50"
+												>
+													{enumVals.map((v) => (
+														<option key={v} value={v}>
+															{v}
+														</option>
+													))}
+												</select>
+											) : (
+												<input
+													value={c.value}
+													onChange={(e) => updateCriterion(c.id, { value: e.target.value })}
+													placeholder={fieldDef?.type === "currency" ? "e.g. 5000" : "Value"}
+													className="flex-1 min-w-[80px] bg-background border border-border rounded-lg px-2.5 py-2 text-[12px] text-foreground font-mono focus:outline-none focus:border-primary/50"
+												/>
+											)}
+
+											{/* Between second input */}
+											{isBetween && !isBoolean && (
 												<>
 													<span className="text-[11px] text-muted-foreground shrink-0">and</span>
 													<input
@@ -728,6 +749,7 @@ const Segments = () => {
 													/>
 												</>
 											)}
+
 											<button
 												type="button"
 												onClick={() => removeCriterion(c.id)}
@@ -746,19 +768,15 @@ const Segments = () => {
 					{/* Live estimate */}
 					<div className="flex items-center gap-4 p-4 bg-primary/5 border border-primary/15 rounded-xl">
 						<div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-							<Users size={16} className="text-primary" />
+							{isCriteriaLoading ? <LoadingSpinner size="sm" /> : <Users size={16} className="text-primary" />}
 						</div>
 						<div>
 							<p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">
 								Estimated match
 							</p>
 							<p className="text-[24px] font-black text-primary leading-none">~{fmtN(estimatedCount)}</p>
-							<p className="text-[10px] text-muted-foreground">users match these criteria</p>
-						</div>
-						<div className="ml-auto text-right">
-							<p className="text-[10px] text-muted-foreground">of total users</p>
-							<p className="text-[16px] font-bold text-foreground">
-								{Math.round((estimatedCount / 15847) * 100)}%
+							<p className="text-[10px] text-muted-foreground mt-1">
+								users match ({logic === "AND" ? "ALL criteria" : "ANY criteria"}) — {fetchedEmails.length} email{fetchedEmails.length === 1 ? "" : "s"} extracted
 							</p>
 						</div>
 					</div>

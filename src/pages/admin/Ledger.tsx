@@ -11,6 +11,7 @@ import {
 	AlertOctagon,
 	ChevronLeft,
 	ChevronRight,
+	Repeat,
 } from "lucide-react";
 import {
 	ledgerAPI,
@@ -51,20 +52,60 @@ const getUserEmail = (entry: LedgerEntry): string => {
 	return typeof entry.userId === "string" ? entry.userId : "—";
 };
 
-function TypeBadge({ type, description }: { type?: string; description?: string }) {
+export function getTypeDetails(type?: string, description?: string) {
 	const normType = (type || "").toUpperCase();
 	const normDesc = (description || "").toUpperCase();
-	const isDebit = normType.startsWith("DEBIT") || normDesc.startsWith("DEBIT");
-	if (isDebit) {
-		return (
-			<Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px] gap-1 font-bold">
-				<ArrowUpRight size={11} /> DEBIT
-			</Badge>
-		);
+
+	if (normType.includes("SWAP") || normDesc.includes("SWAP") || normDesc.includes("CONVERTED")) {
+		return {
+			category: "SWAP" as const,
+			label: normType.includes("SWAP") ? normType : "SWAP",
+			badgeClass: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+			textClass: "text-violet-400",
+			prefix: "⇄",
+			icon: Repeat,
+		};
 	}
+
+	if (normType.includes("DEBIT") || normDesc.startsWith("DEBIT")) {
+		return {
+			category: "DEBIT" as const,
+			label: "DEBIT",
+			badgeClass: "bg-red-500/10 text-red-400 border-red-500/20",
+			textClass: "text-red-400",
+			prefix: "−",
+			icon: ArrowUpRight,
+		};
+	}
+
+	if (normType.includes("DEPOSIT")) {
+		return {
+			category: "DEPOSIT" as const,
+			label: "DEPOSIT",
+			badgeClass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+			textClass: "text-emerald-400",
+			prefix: "+",
+			icon: ArrowDownLeft,
+		};
+	}
+
+	// Default CREDIT
+	return {
+		category: "CREDIT" as const,
+		label: normType.startsWith("CREDIT") ? normType : "CREDIT",
+		badgeClass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+		textClass: "text-emerald-400",
+		prefix: "+",
+		icon: ArrowDownLeft,
+	};
+}
+
+function TypeBadge({ type, description }: { type?: string; description?: string }) {
+	const details = getTypeDetails(type, description);
+	const Icon = details.icon;
 	return (
-		<Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] gap-1 font-bold">
-			<ArrowDownLeft size={11} /> CREDIT
+		<Badge variant="outline" className={`${details.badgeClass} text-[10px] gap-1 font-bold`}>
+			<Icon size={11} /> {details.label}
 		</Badge>
 	);
 }
@@ -424,9 +465,7 @@ const Ledger = () => {
 									paged.map((e) => {
 										const uid = getUserId(e);
 										const email = getUserEmail(e);
-										const normType = (e.type || "").toUpperCase();
-										const normDesc = (e.description || "").toUpperCase();
-										const isDebit = normType.startsWith("DEBIT") || normDesc.startsWith("DEBIT");
+										const details = getTypeDetails(e.type, e.description);
 										const displayDesc = e.description || e.type;
 
 										return (
@@ -455,9 +494,11 @@ const Ledger = () => {
 														{displayDesc}
 													</p>
 												</td>
-												<td className={`px-5 py-3.5 text-[13px] font-mono font-bold ${isDebit ? "text-red-400" : "text-emerald-400"}`}>
-													{isDebit ? "−" : "+"}
-													{e.currency === "USDC" ? `${e.amount} USDC` : ngn(e.amount)}
+												<td className={`px-5 py-3.5 text-[13px] font-mono font-bold ${details.textClass}`}>
+													{details.prefix}{" "}
+													{e.currency?.toUpperCase() === "USDC" || e.currency?.toUpperCase() === "USDT"
+														? `${e.amount} ${e.currency.toUpperCase()}`
+														: ngn(e.amount)}
 												</td>
 												<td className="px-5 py-3.5 text-[12px] font-mono text-muted-foreground">
 													{ngn(e.balanceBefore)}
@@ -560,30 +601,32 @@ const Ledger = () => {
 								</div>
 							) : (
 								userEntries.map((entry) => {
-									const normType = (entry.type || "").toUpperCase();
-									const normDesc = (entry.description || "").toUpperCase();
-									const isDebit = normType.startsWith("DEBIT") || normDesc.startsWith("DEBIT");
+									const details = getTypeDetails(entry.type, entry.description);
+									const Icon = details.icon;
 									const displayDesc = entry.description || entry.type;
 
 									return (
 										<div key={entry._id} className="bg-card border border-border rounded-xl p-4">
 											<div className="flex items-center justify-between mb-2">
 												<div className="flex items-center gap-2">
-													{isDebit ? (
-														<ArrowUpRight size={14} className="text-red-400" />
-													) : (
-														<ArrowDownLeft size={14} className="text-emerald-400" />
-													)}
-													<span className={`text-[12px] font-bold ${isDebit ? "text-red-400" : "text-emerald-400"}`}>
-														{isDebit ? "Debit" : "Credit"}
+													<Icon size={14} className={details.textClass} />
+													<span className={`text-[12px] font-bold ${details.textClass}`}>
+														{details.label}
 													</span>
 												</div>
-												<span className={`text-[14px] font-bold ${isDebit ? "text-red-400" : "text-emerald-400"}`}>
-													{isDebit ? "−" : "+"}
-													{entry.currency === "USDC" ? `${entry.amount} USDC` : ngn(Math.abs(entry.amount))}
+												<span className={`text-[14px] font-bold ${details.textClass}`}>
+													{details.prefix}{" "}
+													{entry.currency?.toUpperCase() === "USDC" || entry.currency?.toUpperCase() === "USDT"
+														? `${entry.amount} ${entry.currency.toUpperCase()}`
+														: ngn(Math.abs(entry.amount))}
 												</span>
 											</div>
 											<p className="text-[11px] text-muted-foreground leading-relaxed mb-3">{displayDesc}</p>
+											{entry.cryptoAmount !== undefined && entry.cryptoAmount > 0 && (
+												<p className="text-[10px] text-violet-400 font-mono mb-2">
+													Crypto Amount: {entry.cryptoAmount} {entry.currency?.toUpperCase()}
+												</p>
+											)}
 											<div className="flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/60 pt-2.5 mt-2">
 												<span>Before: {ngn(entry.balanceBefore)}</span>
 												<span>After: {ngn(entry.balanceAfter)}</span>
