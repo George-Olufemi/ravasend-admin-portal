@@ -293,6 +293,41 @@ export interface LedgerResponse {
   data: LedgerEntry[];
 }
 
+export interface ActiveUsersResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    totalActiveUsers: number;
+    previousMonthActiveUsers: number;
+    percentageChange: string;
+  };
+}
+
+export interface TotalTransactionVolumeResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    totalAmount: number;
+    previousMonthAmount: number;
+    percentageChange: string;
+  };
+}
+
+export interface VolumeGraphTransactionItem {
+  date: string;
+  amount: number;
+}
+
+export interface TransactionVolumeGraphResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    period: string;
+    days: number;
+    transactions: VolumeGraphTransactionItem[];
+  };
+}
+
 export interface LedgerReconciliation {
   totalCredits: number;
   totalDebits: number;
@@ -456,6 +491,23 @@ export const transactionAPI = {
   },
   getFailedTransaction: async (): Promise<TotalAmountResponse> => {
     const response = await api.get("/api/v1/admin/getTotalFailedTransactionAmount");
+    return response.data;
+  },
+};
+
+export const dashboardAPI = {
+  getTotalActiveUsers: async (): Promise<ActiveUsersResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalActiveUsers");
+    return response.data;
+  },
+  getTotalTransactionVolume: async (): Promise<TotalTransactionVolumeResponse> => {
+    const response = await api.get("/api/v1/admin/getTotalTransactionVolume");
+    return response.data;
+  },
+  getTransactionVolumeGraph: async (
+    period: "last30days" | "last90days" = "last30days"
+  ): Promise<TransactionVolumeGraphResponse> => {
+    const response = await api.get(`/api/v1/admin/getTransactionVolumeGraph?period=${period}`);
     return response.data;
   },
 };

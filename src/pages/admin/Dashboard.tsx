@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Download, AlertOctagon, ChevronRight, Loader2 } from "lucide-react";
@@ -8,8 +8,10 @@ import {
   segmentAPI,
   campaignAPI,
   systemSettingsAPI,
+  dashboardAPI,
 } from "@/lib/api";
 import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 function fmtN(num: number) {
   return new Intl.NumberFormat().format(num || 0);
@@ -51,15 +53,11 @@ function PurpleBtn({
   size?: "sm" | "md";
 }) {
   return (
-    <button
+    <Button
       onClick={onClick}
-      className={`flex items-center justify-center gap-2 rounded-xl font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 ${
-        size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-4 py-2.5 text-[12px]"
-      } ${className}`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -74,7 +72,6 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 }
 
 function ChannelBadge({ ch }: { ch: string }) {
-  // const norm = (ch || "").toLowerCase();
   const norm = (ch || "");
   let bg = "bg-primary/10 text-primary border-primary/20";
   if (norm.includes("email") || norm.includes("mail")) bg = "bg-blue-500/10 text-blue-400 border-blue-500/20";
@@ -106,11 +103,10 @@ function StatusBadge({ status }: { status: string }) {
 export function VolumeChart({ data }: { data: { d: string; v: number }[] }) {
   const W = 560;
   const H = 180;
-  const pad = { top: 16, right: 8, bottom: 32, left: 48 };
+  const pad = { top: 16, right: 16, bottom: 32, left: 52 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
-  const rawMax = Math.max(...data.map((d) => d.v), 1);
-  const maxV = Math.ceil(rawMax);
+  const maxV = Math.max(...data.map((d) => d.v), 1);
   const cx = (i: number) => pad.left + (i / Math.max(data.length - 1, 1)) * iW;
   const cy = (v: number) => pad.top + (1 - Math.min(v / maxV, 1)) * iH;
   const linePts = data.map((d, i) => `${cx(i)},${cy(d.v)}`).join(" L ");
@@ -123,6 +119,14 @@ export function VolumeChart({ data }: { data: { d: string; v: number }[] }) {
     Number((maxV * 0.75).toFixed(1)),
     maxV,
   ];
+
+  const fmtChartY = (v: number) => {
+    if (maxV >= 1_000_000) return `₦${(v / 1_000_000).toFixed(1)}M`;
+    if (maxV >= 1_000) return `₦${(v / 1_000).toFixed(0)}k`;
+    return `₦${Math.round(v)}`;
+  };
+
+  const xLabelStep = Math.max(1, Math.floor(data.length / 6));
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 180 }}>
@@ -145,14 +149,18 @@ export function VolumeChart({ data }: { data: { d: string; v: number }[] }) {
       ))}
       {yTicks.map((v, i) => (
         <text key={i} x={pad.left - 6} y={cy(v) + 4} textAnchor="end" fontSize={10} fill="#8B86A8">
-          ₦{v}M
+          {fmtChartY(v)}
         </text>
       ))}
-      {data.map((d, i) => (
-        <text key={d.d + i} x={cx(i)} y={H - 8} textAnchor="middle" fontSize={10} fill="#8B86A8">
-          {d.d}
-        </text>
-      ))}
+      {data.map((d, i) => {
+        const showLabel = i % xLabelStep === 0 || i === data.length - 1;
+        if (!showLabel) return null;
+        return (
+          <text key={d.d + i} x={cx(i)} y={H - 8} textAnchor="middle" fontSize={10} fill="#8B86A8">
+            {d.d}
+          </text>
+        );
+      })}
       <path d={areaPath} fill="url(#volGrad)" />
       <polyline points={linePts} fill="none" stroke="#7B3FE4" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       {data.map((d, i) => (
@@ -164,41 +172,51 @@ export function VolumeChart({ data }: { data: { d: string; v: number }[] }) {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const [period, setPeriod] = useState<"last30days" | "last90days">("last30days");
 
-  // ── 1. Fetch Users Data ──
   const { data: usersData, isLoading: loadingUsers } = useQuery({
     queryKey: ["users"],
     queryFn: usersAPI.getAll,
   });
 
-  // ── 2. Fetch Transactions Data ──
   const { data: transactionsData, isLoading: loadingTxns } = useQuery({
     queryKey: ["transactions"],
     queryFn: transactionAPI.getAll,
   });
 
-  // ── 3. Fetch Segments Data ──
   const { data: segmentsData, isLoading: loadingSegments } = useQuery({
     queryKey: ["segments"],
     queryFn: segmentAPI.getAllSegments,
   });
 
-  // ── 4. Fetch Campaigns Data ──
   const { data: campaignsData, isLoading: loadingCampaigns } = useQuery({
     queryKey: ["campaigns"],
     queryFn: campaignAPI.getAllCampaigns,
   });
 
-  // ── 5. Fetch Withdrawal Pause Status ──
   const { data: pauseStatusData } = useQuery({
     queryKey: ["withdrawal-pause-status"],
     queryFn: systemSettingsAPI.getWithdrawalPauseStatus,
   });
 
+  const { data: activeUsersRes, isLoading: loadingActiveUsers } = useQuery({
+    queryKey: ["total-active-users"],
+    queryFn: dashboardAPI.getTotalActiveUsers,
+  });
+
+  const { data: totalVolumeRes, isLoading: loadingTotalVolume } = useQuery({
+    queryKey: ["total-transaction-volume"],
+    queryFn: dashboardAPI.getTotalTransactionVolume,
+  });
+
+  const { data: graphRes, isLoading: loadingGraph } = useQuery({
+    queryKey: ["transaction-volume-graph", period],
+    queryFn: () => dashboardAPI.getTransactionVolumeGraph(period),
+  });
+
   const users = useMemo(() => usersData?.users || [], [usersData]);
   const transactions = useMemo(() => transactionsData?.data || [], [transactionsData]);
 
-  // Withdrawal paused status from backend
   const withdrawalPaused = useMemo(() => {
     if (pauseStatusData?.data) {
       return !pauseStatusData.data.isPermitted;
@@ -206,40 +224,27 @@ const Dashboard = () => {
     return false;
   }, [pauseStatusData]);
 
-  // Dynamic Chart Data derived strictly from transactionAPI data
   const chartData = useMemo(() => {
-    if (!transactions || transactions.length === 0) {
-      return [
-        { d: "No Data", v: 0 },
-      ];
+    const txs = graphRes?.data?.transactions || [];
+    if (txs.length === 0) {
+      return [{ d: "No Data", v: 0 }];
     }
-
-    const sorted = [...transactions].sort(
-      (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-    );
-
-    const dateMap: Record<string, number> = {};
-    sorted.forEach((t) => {
-      if (!t.createdAt) return;
-      const dateStr = format(new Date(t.createdAt), "MMM d");
-      const amtInMillions = (t.amount || 0) / 1000000;
-      dateMap[dateStr] = (dateMap[dateStr] || 0) + amtInMillions;
+    return txs.map((item) => {
+      let dStr = item.date;
+      try {
+        if (item.date) {
+          dStr = format(new Date(item.date + "T00:00:00"), "MMM d");
+        }
+      } catch (e) {
+        dStr = item.date;
+      }
+      return {
+        d: dStr,
+        v: item.amount || 0,
+      };
     });
+  }, [graphRes]);
 
-    const points = Object.entries(dateMap).map(([d, v]) => ({
-      d,
-      v: Number(v.toFixed(2)),
-    }));
-
-    return points.length > 0 ? points.slice(-7) : [{ d: "No Data", v: 0 }];
-  }, [transactions]);
-
-  // Dynamic Volume Calculation
-  const totalVolumeNgn = useMemo(() => {
-    return transactions.reduce((acc, t) => acc + (t.amount || 0), 0);
-  }, [transactions]);
-
-  // Pending / Held Withdrawals
   const pendingWithdrawalsCount = useMemo(() => {
     return transactions.filter(
       (t) =>
@@ -258,7 +263,6 @@ const Dashboard = () => {
       .reduce((acc, t) => acc + (t.amount || 0), 0);
   }, [transactions]);
 
-  // Dynamic Active Segments derived strictly from segmentAPI data
   const activeSegments = useMemo(() => {
     const raw = segmentsData?.data || (Array.isArray(segmentsData) ? segmentsData : []);
     const colors = ["#7B3FE4", "#EF4444", "#10B981", "#3B82F6", "#F59E0B"];
@@ -271,7 +275,6 @@ const Dashboard = () => {
     }));
   }, [segmentsData]);
 
-  // Dynamic Recent Campaigns derived strictly from campaignAPI data
   const activeCampaigns = useMemo(() => {
     const raw = campaignsData?.data || (Array.isArray(campaignsData) ? campaignsData : []);
     return raw.map((c: any) => {
@@ -294,11 +297,13 @@ const Dashboard = () => {
   }, [campaignsData]);
 
   const exportReport = () => {
+    const totalVol = totalVolumeRes?.data?.totalAmount || 0;
+    const activeUsrs = activeUsersRes?.data?.totalActiveUsers || 0;
     const reportData = [
       ["Metric", "Value"],
       ["Total Users", users.length],
-      ["Active Users (30d)", users.filter((u: any) => !u.isBlocked).length],
-      ["Total Transaction Volume (NGN)", totalVolumeNgn],
+      ["Active Users", activeUsrs],
+      ["Total Transaction Volume (NGN)", totalVol],
       ["Total Segments", activeSegments.length],
       ["Total Campaigns", activeCampaigns.length],
       ["Withdrawal Kill Switch", withdrawalPaused ? "ACTIVE" : "INACTIVE"],
@@ -316,7 +321,14 @@ const Dashboard = () => {
     document.body.removeChild(link);
   };
 
-  const isLoadingOverall = loadingUsers && loadingTxns && loadingSegments && loadingCampaigns;
+  const isLoadingOverall =
+    loadingUsers &&
+    loadingTxns &&
+    loadingSegments &&
+    loadingCampaigns &&
+    loadingActiveUsers &&
+    loadingTotalVolume &&
+    loadingGraph;
 
   if (isLoadingOverall) {
     return (
@@ -325,6 +337,12 @@ const Dashboard = () => {
       </div>
     );
   }
+
+  const activeUsersCount = activeUsersRes?.data?.totalActiveUsers ?? 0;
+  const activeUsersChange = activeUsersRes?.data?.percentageChange;
+
+  const totalVolAmount = totalVolumeRes?.data?.totalAmount ?? 0;
+  const totalVolChange = totalVolumeRes?.data?.percentageChange;
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-7">
@@ -361,14 +379,18 @@ const Dashboard = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <StatCard label="Total Users" value={fmtN(users.length)} sub="Registered on Ravasend" />
         <StatCard
-          label="Active Users (30d)"
-          value={fmtN(users.filter((u: any) => !u.isBlocked).length)}
-          sub="Verified & Active"
+          label="Active Users"
+          value={fmtN(activeUsersCount)}
+          sub={activeUsersChange ? `${activeUsersChange} vs prev month` : "Active Users"}
         />
         <StatCard
           label="Volume"
-          value={totalVolumeNgn >= 1000000 ? `₦${(totalVolumeNgn / 1000000).toFixed(1)}M` : ngn(totalVolumeNgn)}
-          sub="Live transactions volume"
+          value={
+            totalVolAmount >= 1000000
+              ? `₦${(totalVolAmount / 1000000).toFixed(1)}M`
+              : ngn(totalVolAmount)
+          }
+          sub={totalVolChange ? `${totalVolChange} vs prev month` : "Live transaction volume"}
         />
         <StatCard
           label={withdrawalPaused ? "Amount Held" : "Pending Withdrawals"}
@@ -382,13 +404,26 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-[13px] font-bold text-foreground">Transaction Volume</h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Daily NGN volume from transactions API</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {period === "last30days" ? "Last 30 days" : "Last 90 days"} transaction volume trend
+              </p>
             </div>
-            <select className="text-[11px] bg-secondary border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none">
-              <option>Real-time timeline</option>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as "last30days" | "last90days")}
+              className="text-[11px] bg-secondary border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="last30days">last30days</option>
+              <option value="last90days">last90days</option>
             </select>
           </div>
-          <VolumeChart data={chartData} />
+          {loadingGraph ? (
+            <div className="flex items-center justify-center h-[180px]">
+              <Loader2 className="animate-spin text-primary" size={24} />
+            </div>
+          ) : (
+            <VolumeChart data={chartData} />
+          )}
         </div>
 
         <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-between">
@@ -474,3 +509,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
