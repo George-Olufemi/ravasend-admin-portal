@@ -11,164 +11,18 @@ import {
   dashboardAPI,
 } from "@/lib/api";
 import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
-
-function fmtN(num: number) {
-  return new Intl.NumberFormat().format(num || 0);
-}
-
-function ngn(num: number) {
-  return "₦" + fmtN(num);
-}
-
-function PageHeader({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{title}</h1>
-        {subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
-      </div>
-      {action && <div className="flex items-center gap-3">{action}</div>}
-    </div>
-  );
-}
-
-function PurpleBtn({
-  children,
-  onClick,
-  className = "",
-  size = "md",
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  size?: "sm" | "md";
-}) {
-  return (
-    <Button
-      onClick={onClick}
-    >
-      {children}
-    </Button>
-  );
-}
-
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-white/[0.025] border border-border rounded-xl p-5">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="text-[22px] font-bold text-foreground leading-none mt-1">{value}</p>
-      {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
-    </div>
-  );
-}
-
-function ChannelBadge({ ch }: { ch: string }) {
-  const norm = (ch || "");
-  let bg = "bg-primary/10 text-primary border-primary/20";
-  if (norm.includes("email") || norm.includes("mail")) bg = "bg-blue-500/10 text-blue-400 border-blue-500/20";
-  if (norm.includes("push") || norm.includes("notification")) bg = "bg-purple-500/10 text-purple-400 border-purple-500/20";
-  if (norm.includes("sms")) bg = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-  return (
-    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase ${bg}`}>
-      {ch}
-    </span>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const norm = (status || "").toLowerCase();
-  if (norm === "active" || norm === "running" || norm === "live" || norm === "completed") {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
-        {status}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-zinc-500/15 text-zinc-400 border border-zinc-500/20 uppercase">
-      {status}
-    </span>
-  );
-}
-
-export function VolumeChart({ data }: { data: { d: string; v: number }[] }) {
-  const W = 560;
-  const H = 180;
-  const pad = { top: 16, right: 16, bottom: 32, left: 52 };
-  const iW = W - pad.left - pad.right;
-  const iH = H - pad.top - pad.bottom;
-  const maxV = Math.max(...data.map((d) => d.v), 1);
-  const cx = (i: number) => pad.left + (i / Math.max(data.length - 1, 1)) * iW;
-  const cy = (v: number) => pad.top + (1 - Math.min(v / maxV, 1)) * iH;
-  const linePts = data.map((d, i) => `${cx(i)},${cy(d.v)}`).join(" L ");
-  const areaPath = `M ${linePts} L ${cx(data.length - 1)},${pad.top + iH} L ${cx(0)},${pad.top + iH} Z`;
-
-  const yTicks = [
-    0,
-    Number((maxV * 0.25).toFixed(1)),
-    Number((maxV * 0.5).toFixed(1)),
-    Number((maxV * 0.75).toFixed(1)),
-    maxV,
-  ];
-
-  const fmtChartY = (v: number) => {
-    if (maxV >= 1_000_000) return `₦${(v / 1_000_000).toFixed(1)}M`;
-    if (maxV >= 1_000) return `₦${(v / 1_000).toFixed(0)}k`;
-    return `₦${Math.round(v)}`;
-  };
-
-  const xLabelStep = Math.max(1, Math.floor(data.length / 6));
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 180 }}>
-      <defs>
-        <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#7B3FE4" stopOpacity={0.18} />
-          <stop offset="100%" stopColor="#7B3FE4" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      {yTicks.slice(1).map((v, i) => (
-        <line
-          key={i}
-          x1={pad.left}
-          x2={W - pad.right}
-          y1={cy(v)}
-          y2={cy(v)}
-          stroke="rgba(255,255,255,0.04)"
-          strokeWidth={1}
-        />
-      ))}
-      {yTicks.map((v, i) => (
-        <text key={i} x={pad.left - 6} y={cy(v) + 4} textAnchor="end" fontSize={10} fill="#8B86A8">
-          {fmtChartY(v)}
-        </text>
-      ))}
-      {data.map((d, i) => {
-        const showLabel = i % xLabelStep === 0 || i === data.length - 1;
-        if (!showLabel) return null;
-        return (
-          <text key={d.d + i} x={cx(i)} y={H - 8} textAnchor="middle" fontSize={10} fill="#8B86A8">
-            {d.d}
-          </text>
-        );
-      })}
-      <path d={areaPath} fill="url(#volGrad)" />
-      <polyline points={linePts} fill="none" stroke="#7B3FE4" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      {data.map((d, i) => (
-        <circle key={`dot-${i}`} cx={cx(i)} cy={cy(d.v)} r={i === data.length - 1 ? 3.5 : 2} fill="#7B3FE4" />
-      ))}
-    </svg>
-  );
-}
+import { fmtN, ngn } from "@/lib/formatters";
+import {
+  PageHeader,
+  PurpleBtn,
+  StatCard,
+  StatusBadge,
+} from "@/components/admin/shared";
+import {
+  VolumeChart,
+  ChannelBadge,
+  exportDashboardReport,
+} from "@/features/dashboard";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -229,7 +83,7 @@ const Dashboard = () => {
     if (txs.length === 0) {
       return [{ d: "No Data", v: 0 }];
     }
-    return txs.map((item) => {
+    return txs.map((item: any) => {
       let dStr = item.date;
       try {
         if (item.date) {
@@ -247,7 +101,7 @@ const Dashboard = () => {
 
   const pendingWithdrawalsCount = useMemo(() => {
     return transactions.filter(
-      (t) =>
+      (t: any) =>
         ((t.source || "").toLowerCase().includes("bank transfer") || (t.source || "").toLowerCase().includes("withdrawal")) &&
         ["PENDING", "PROCESSING", "HELD"].includes((t.status || "").toUpperCase())
     ).length;
@@ -256,11 +110,11 @@ const Dashboard = () => {
   const pendingWithdrawalsAmount = useMemo(() => {
     return transactions
       .filter(
-        (t) =>
+        (t: any) =>
           ((t.source || "").toLowerCase().includes("bank transfer") || (t.source || "").toLowerCase().includes("withdrawal")) &&
           ["PENDING", "PROCESSING", "HELD"].includes((t.status || "").toUpperCase())
       )
-      .reduce((acc, t) => acc + (t.amount || 0), 0);
+      .reduce((acc: number, t: any) => acc + (t.amount || 0), 0);
   }, [transactions]);
 
   const activeSegments = useMemo(() => {
@@ -296,29 +150,17 @@ const Dashboard = () => {
     });
   }, [campaignsData]);
 
-  const exportReport = () => {
+  const handleExport = () => {
     const totalVol = totalVolumeRes?.data?.totalAmount || 0;
     const activeUsrs = activeUsersRes?.data?.totalActiveUsers || 0;
-    const reportData = [
-      ["Metric", "Value"],
-      ["Total Users", users.length],
-      ["Active Users", activeUsrs],
-      ["Total Transaction Volume (NGN)", totalVol],
-      ["Total Segments", activeSegments.length],
-      ["Total Campaigns", activeCampaigns.length],
-      ["Withdrawal Kill Switch", withdrawalPaused ? "ACTIVE" : "INACTIVE"],
-      ["Export Date", new Date().toLocaleString()],
-    ];
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      reportData.map((e) => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `dashboard-report-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportDashboardReport(
+      users.length,
+      activeUsrs,
+      totalVol,
+      activeSegments.length,
+      activeCampaigns.length,
+      withdrawalPaused
+    );
   };
 
   const isLoadingOverall =
@@ -350,7 +192,7 @@ const Dashboard = () => {
         title="Dashboard"
         subtitle="Platform activity and key metrics at a glance"
         action={
-          <PurpleBtn onClick={exportReport}>
+          <PurpleBtn onClick={handleExport}>
             <Download size={13} /> Export Report
           </PurpleBtn>
         }
@@ -509,4 +351,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

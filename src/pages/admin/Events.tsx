@@ -31,9 +31,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { PAGE_SIZE, formatCurrency, getInitials } from "@/features/events";
 
 const Events = () => {
-  const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -83,22 +83,6 @@ const Events = () => {
     startIndex,
     startIndex + PAGE_SIZE,
   );
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-    }).format(amount);
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   const downloadCSV = () => {
     if (!filteredUsers.length) return;

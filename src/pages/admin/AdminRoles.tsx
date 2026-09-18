@@ -25,166 +25,31 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-// ─── Types & Constants ────────────────────────────────────────────────────────
+import {
+  AdminRole,
+  ApiAdminMember,
+  AdminUser,
+  PermMatrix,
+  DEFAULT_ROLE_PERMISSIONS,
+  PERM_LABELS,
+  SAMPLE_ADMINS,
+  ROLE_COLORS,
+  roleOptions,
+  allRoles,
+  normalizeRole,
+  PurpleBtn,
+  TableWrap,
+  THead,
+  SlidePanel,
+} from "@/features/admin-roles";
 
-type AdminRole = "Owner" | "Super Admin" | "Competition Manager" | "Finance / Ops" | "Support Agent" | "Read Only";
 
-interface ApiAdminMember {
-  _id: string;
-  fullName: string;
-  email: string;
-  role: string;
-  isVerified: boolean;
-  isBlocked: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  role: AdminRole;
-  status: "active" | "inactive" | "pending";
-  lastSeen: string;
-  addedDate: string;
-  avatar: string;
-}
-
-type PermMatrix = Record<AdminRole, Record<string, boolean>>;
-
-const DEFAULT_ROLE_PERMISSIONS: PermMatrix = {
-  "Owner":                { users: true,  transactions: true,  fees: true,  competitions: true,  disburse: true,  segments: true,  campaigns: true,  withdrawals: true,  roles: true,  billing: true  },
-  "Super Admin":          { users: true,  transactions: true,  fees: true,  competitions: true,  disburse: true,  segments: true,  campaigns: true,  withdrawals: true,  roles: true,  billing: false },
-  "Competition Manager":  { users: false, transactions: false, fees: false, competitions: true,  disburse: false, segments: true,  campaigns: true,  withdrawals: false, roles: false, billing: false },
-  "Finance / Ops":        { users: false, transactions: true,  fees: true,  competitions: false, disburse: true,  segments: false, campaigns: false, withdrawals: true,  roles: false, billing: true  },
-  "Support Agent":        { users: true,  transactions: true,  fees: false, competitions: false, disburse: false, segments: false, campaigns: false, withdrawals: false, roles: false, billing: false },
-  "Read Only":            { users: true,  transactions: true,  fees: true,  competitions: true,  disburse: false, segments: true,  campaigns: true,  withdrawals: true,  roles: false, billing: false },
-};
-
-const PERM_LABELS: { key: string; label: string; desc: string }[] = [
-  { key: "users", label: "Users", desc: "View and manage user accounts" },
-  { key: "transactions", label: "Transactions", desc: "View all transaction history" },
-  { key: "fees", label: "Fee Structure", desc: "Edit platform fee rules" },
-  { key: "competitions", label: "Competitions", desc: "Create and manage competitions" },
-  { key: "disburse", label: "Disbursements", desc: "Approve and trigger prize payouts" },
-  { key: "segments", label: "Segments", desc: "Create and edit user segments" },
-  { key: "campaigns", label: "Campaigns", desc: "Create and send campaigns" },
-  { key: "withdrawals", label: "Withdrawals", desc: "Control withdrawal settings" },
-  { key: "roles", label: "Manage Roles", desc: "Invite admins and edit permissions" },
-  { key: "billing", label: "Billing", desc: "View and manage platform billing" },
-];
-
-const SAMPLE_ADMINS: AdminUser[] = [
-  { id: "ADM-000", name: "You (Owner)", email: "owner@ravasend.com", role: "Owner", status: "active", lastSeen: "Just now", addedDate: "Jan 1, 2026", avatar: "OW" },
-  { id: "ADM-001", name: "Tobi Oluwaseun", email: "tobi@ravasend.com", role: "Super Admin", status: "active", lastSeen: "Just now", addedDate: "Jan 12, 2026", avatar: "TO" },
-  { id: "ADM-002", name: "Chidinma Eze", email: "chidinma@ravasend.com", role: "Finance / Ops", status: "active", lastSeen: "2 hours ago", addedDate: "Feb 3, 2026", avatar: "CE" },
-  { id: "ADM-003", name: "Emmanuel Ibe", email: "emman@ravasend.com", role: "Competition Manager", status: "active", lastSeen: "Yesterday", addedDate: "Mar 18, 2026", avatar: "EI" },
-  { id: "ADM-004", name: "Fatima Lawal", email: "fatima@ravasend.com", role: "Support Agent", status: "active", lastSeen: "3 days ago", addedDate: "Apr 5, 2026", avatar: "FL" },
-  { id: "ADM-005", name: "Kola Adeleke", email: "kola@ravasend.com", role: "Read Only", status: "pending", lastSeen: "—", addedDate: "Jul 28, 2026", avatar: "KA" },
-];
-
-const ROLE_COLORS: Record<AdminRole, string> = {
-  "Owner": "bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border-amber-500/40",
-  "Super Admin": "bg-purple-500/15 text-purple-300 border-purple-500/30",
-  "Competition Manager": "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  "Finance / Ops": "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  "Support Agent": "bg-blue-500/15 text-blue-300 border-blue-500/30",
-  "Read Only": "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
-};
-
-function normalizeRole(roleStr: string): AdminRole {
-  const r = roleStr?.toLowerCase() || "";
-  if (r.includes("owner")) return "Owner";
-  if (r.includes("super") || r === "admin") return "Super Admin";
-  if (r.includes("competition")) return "Competition Manager";
-  if (r.includes("finance") || r.includes("ops")) return "Finance / Ops";
-  if (r.includes("support")) return "Support Agent";
-  return "Read Only";
-}
-
-function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between mb-6">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">{title}</h1>
-        {subtitle && <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>}
-      </div>
-      {action && <div>{action}</div>}
-    </div>
-  );
-}
-
-function PurpleBtn({
-  children,
-  onClick,
-  className = "",
-  size = "md",
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  size?: "sm" | "md";
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 rounded-xl font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 ${
-        size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-4 py-2 text-[12px]"
-      } ${className}`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function TableWrap({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-white/[0.025] border border-border rounded-xl overflow-hidden mb-4">
-      <table className="w-full text-left border-collapse">{children}</table>
-    </div>
-  );
-}
-
-function THead({ cols }: { cols: string[] }) {
-  return (
-    <thead>
-      <tr className="border-b border-border bg-white/[0.02]">
-        {cols.map((c, i) => (
-          <th key={i} className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-            {c}
-          </th>
-        ))}
-      </tr>
-    </thead>
-  );
-}
-
-function SlidePanel({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex justify-end" onClick={onClose}>
-      <div className="w-full sm:w-[440px] h-full bg-[#0F0D26] border-l border-border p-4 sm:p-6 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
-          <h2 className="text-[16px] font-bold text-foreground">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5">
-            <X size={16} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Component ──────────────────────────────────────────────────────────
 
 function AdminRolesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // ── Queries & Mutations ──
+
   const {
     data: membersResponse,
     isLoading,
@@ -238,24 +103,24 @@ function AdminRolesPage() {
     },
   });
 
-  // Map API members to display format
+  // Mapping API members to display format
   const mappedAdmins: AdminUser[] = apiMembers.length > 0
     ? apiMembers.map((m) => {
-        const initials = m.fullName ? m.fullName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() : "AD";
-        const role = normalizeRole(m.role);
-        const status = m.isBlocked ? "inactive" : m.isVerified ? "active" : "pending";
-        const date = m.createdAt ? new Date(m.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-";
-        return {
-          id: m._id,
-          name: m.fullName || "Admin Member",
-          email: m.email || "-",
-          role,
-          status,
-          lastSeen: m.updatedAt ? new Date(m.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Just now",
-          addedDate: date,
-          avatar: initials,
-        };
-      })
+      const initials = m.fullName ? m.fullName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() : "AD";
+      const role = normalizeRole(m.role);
+      const status = m.isBlocked ? "inactive" : m.isVerified ? "active" : "pending";
+      const date = m.createdAt ? new Date(m.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-";
+      return {
+        id: m._id,
+        name: m.fullName || "Admin Member",
+        email: m.email || "-",
+        role,
+        status,
+        lastSeen: m.updatedAt ? new Date(m.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Just now",
+        addedDate: date,
+        avatar: initials,
+      };
+    })
     : SAMPLE_ADMINS;
 
   const [admins, setAdmins] = useState<AdminUser[]>(SAMPLE_ADMINS);
@@ -393,9 +258,8 @@ function AdminRolesPage() {
           <button
             key={t}
             onClick={() => setActiveTab(t)}
-            className={`px-4 py-1.5 rounded-lg text-[12px] font-semibold capitalize whitespace-nowrap transition-all ${
-              activeTab === t ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`px-4 py-1.5 rounded-lg text-[12px] font-semibold capitalize whitespace-nowrap transition-all ${activeTab === t ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
             style={activeTab === t ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}
           >
             {t === "team" ? "Team Members" : "Permission Matrix"}
@@ -413,9 +277,8 @@ function AdminRolesPage() {
                 <button
                   key={role}
                   onClick={() => setViewRole(viewRole === role ? null : role)}
-                  className={`p-4 rounded-xl border text-left transition-all ${
-                    viewRole === role ? "border-primary/40 bg-primary/5" : "border-border bg-white/[0.025] hover:border-primary/20"
-                  }`}
+                  className={`p-4 rounded-xl border text-left transition-all ${viewRole === role ? "border-primary/40 bg-primary/5" : "border-border bg-white/[0.025] hover:border-primary/20"
+                    }`}
                 >
                   <p className={`text-[10px] font-bold px-2 py-0.5 rounded-full border w-fit mb-2 ${ROLE_COLORS[role]}`}>{role}</p>
                   <p className="text-[22px] font-bold text-foreground">{count}</p>
@@ -458,13 +321,12 @@ function AdminRolesPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            a.status === "active"
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${a.status === "active"
                               ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
                               : a.status === "pending"
-                              ? "bg-amber-500/15 text-amber-400 border-amber-500/20"
-                              : "bg-zinc-500/15 text-zinc-400 border-zinc-500/20"
-                          }`}
+                                ? "bg-amber-500/15 text-amber-400 border-amber-500/20"
+                                : "bg-zinc-500/15 text-zinc-400 border-zinc-500/20"
+                            }`}
                         >
                           {a.status}
                         </span>
@@ -580,9 +442,8 @@ function AdminRolesPage() {
                       <button
                         onClick={() => togglePerm(r, p.key)}
                         disabled={isOwner}
-                        className={`size-6 rounded-md flex items-center justify-center transition-all ${
-                          isOwner ? "cursor-default" : "cursor-pointer hover:scale-110"
-                        } ${granted ? "bg-emerald-500/20 border border-emerald-500/40" : "bg-zinc-800/60 border border-zinc-700"}`}
+                        className={`size-6 rounded-md flex items-center justify-center transition-all ${isOwner ? "cursor-default" : "cursor-pointer hover:scale-110"
+                          } ${granted ? "bg-emerald-500/20 border border-emerald-500/40" : "bg-zinc-800/60 border border-zinc-700"}`}
                         title={isOwner ? "Owner has all permissions" : granted ? "Click to revoke" : "Click to grant"}
                       >
                         {granted ? (
@@ -714,9 +575,8 @@ function AdminRolesPage() {
                     <span className="text-muted-foreground">·</span>
                     <span className="text-muted-foreground">{PERM_LABELS.find((p) => p.key === key)?.label ?? key}</span>
                     <span
-                      className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-                        val ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"
-                      }`}
+                      className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${val ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"
+                        }`}
                     >
                       {val ? "Granted" : "Revoked"}
                     </span>
@@ -840,9 +700,8 @@ function AdminRolesPage() {
                   key={r}
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, role: r }))}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${
-                    form.role === r ? "border-primary/40 bg-primary/5" : "border-border bg-white/[0.025] hover:border-primary/20"
-                  }`}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${form.role === r ? "border-primary/40 bg-primary/5" : "border-border bg-white/[0.025] hover:border-primary/20"
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${ROLE_COLORS[r]}`}>{r}</span>
@@ -850,12 +709,12 @@ function AdminRolesPage() {
                       {r === "Super Admin"
                         ? "Full access, all actions"
                         : r === "Competition Manager"
-                        ? "Competitions, segments, campaigns"
-                        : r === "Finance / Ops"
-                        ? "Transactions, fees, disbursements"
-                        : r === "Support Agent"
-                        ? "View users & transactions"
-                        : "View-only across all modules"}
+                          ? "Competitions, segments, campaigns"
+                          : r === "Finance / Ops"
+                            ? "Transactions, fees, disbursements"
+                            : r === "Support Agent"
+                              ? "View users & transactions"
+                              : "View-only across all modules"}
                     </span>
                   </div>
                   {form.role === r && <CheckCircle2 size={14} className="text-primary shrink-0" />}

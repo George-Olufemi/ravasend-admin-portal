@@ -4,13 +4,10 @@ import {
   Eye, EyeOff, Flag, Lock, Medal, Pencil, Plus, RefreshCw,
   Search, Send, Trash2, TrendingDown, TrendingUp, Wallet, CheckCircle2,
 } from "lucide-react";
-import type { PrizeTier, Competition, CompLeaderboardEntry } from "./competitions/types";
-import { COMP_CATEGORIES, COMP_TYPES, INITIAL_COMPETITIONS, INITIAL_LEADERBOARDS } from "./competitions/data";
-import {
-  ngn, fmtN, Avatar, DateInput, PageHeader, PurpleBtn, SlidePanel, StatCard, THead, TableWrap,
-} from "./competitions/ui";
+import { PrizeTier, Competition, CompLeaderboardEntry } from "@/features/competitions";
+import { COMP_CATEGORIES, COMP_TYPES, INITIAL_COMPETITIONS, INITIAL_LEADERBOARDS } from "@/features/competitions";
+import { ngn, fmtN, Avatar, DateInput, PageHeader, PurpleBtn, SlidePanel, StatCard, THead, TableWrap } from "@/features/competitions";
 
-// ─── Competitions ─────────────────────────────────────────────────────────────
 
 function useCountdown(endDateStr: string) {
   const [time, setTime] = useState({ d: 0, h: 0, m: 0, s: 0 });
@@ -30,7 +27,6 @@ function useCountdown(endDateStr: string) {
   return time;
 }
 
-// ─── CompetitionsPage ─────────────────────────────────────────────────────────
 
 export default function CompetitionsPage() {
   const [competitions, setCompetitions] = useState<Competition[]>(INITIAL_COMPETITIONS);
@@ -389,7 +385,7 @@ export default function CompetitionsPage() {
                     {entry.flagged
                       ? <button onClick={() => unflagUser(comp.id, entry.userId)} className="text-[10px] text-muted-foreground hover:text-emerald-400 border border-border rounded-lg px-2 py-1 transition-colors">Clear flag</button>
                       : <button onClick={() => { setFlagTarget({ compId: comp.id, userId: entry.userId, user: entry.user }); setFlagNote(""); }}
-                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-colors" title="Flag user"><Flag size={11} /></button>}
+                        className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-colors" title="Flag user"><Flag size={11} /></button>}
                   </div>
                 </div>
               );

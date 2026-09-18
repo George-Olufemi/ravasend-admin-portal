@@ -21,136 +21,21 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import {
-	Sheet,
-	SheetContent,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 
-function fmtN(num: number) {
-	return new Intl.NumberFormat().format(num || 0);
-}
+import {
+	Criterion,
+	COLOR_PALETTE,
+	SEG_FIELDS,
+	SEG_ENUM_VALUES,
+	SEG_OPERATORS,
+	fmtN,
+	StatusBadge,
+	LinkedBadge,
+	PurpleBtn,
+	SlidePanel,
+} from "@/features/segments";
 
-function StatusBadge({ status }: { status: string }) {
-	const normalized = (status || "").toLowerCase();
-	if (normalized === "active" || normalized === "completed") {
-		return (
-			<Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 capitalize">
-				{normalized}
-			</Badge>
-		);
-	}
-	if (normalized === "paused") {
-		return (
-			<Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 capitalize">
-				Paused
-			</Badge>
-		);
-	}
-	return (
-		<Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border capitalize">
-			{status || "draft"}
-		</Badge>
-	);
-}
-
-function LinkedBadge({ isLinked }: { isLinked: boolean }) {
-	if (isLinked) {
-		return (
-			<Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 gap-1">
-				<Link2 size={11} /> Linked to Campaign
-			</Badge>
-		);
-	}
-	return (
-		<Badge variant="outline" className="bg-muted/40 text-muted-foreground border-border gap-1">
-			<Unlink size={11} /> Not Linked
-		</Badge>
-	);
-}
-
-function PurpleBtn({
-	children,
-	onClick,
-	disabled,
-}: {
-	children: React.ReactNode;
-	onClick?: () => void;
-	disabled?: boolean;
-}) {
-	return (
-		<Button onClick={onClick} disabled={disabled}>
-			{children}
-		</Button>
-	);
-}
-
-function SlidePanel({
-	open,
-	onClose,
-	title,
-	subtitle,
-	children,
-	footer,
-}: {
-	open: boolean;
-	onClose: () => void;
-	title: string;
-	subtitle: string;
-	children: React.ReactNode;
-	footer?: React.ReactNode;
-}) {
-	return (
-		<Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-			<SheetContent side="right" className="w-full sm:max-w-[540px] overflow-y-auto bg-background p-6 flex flex-col justify-between">
-				<div>
-					<SheetHeader className="mb-4">
-						<SheetTitle className="text-xl font-bold text-foreground">{title}</SheetTitle>
-						<p className="text-[12px] text-muted-foreground">{subtitle}</p>
-					</SheetHeader>
-					{children}
-				</div>
-				{footer && <div className="pt-6 border-t border-border mt-6">{footer}</div>}
-			</SheetContent>
-		</Sheet>
-	);
-}
-
-const COLOR_PALETTE = ["#7B3FE4", "#F59E0B", "#4ADE80", "#F87171", "#A78BFA", "#60A5FA", "#34D399", "#FB923C"];
-
-interface Criterion {
-	id: string;
-	field: string;
-	operator: string;
-	value: string;
-	valueB?: string;
-}
-
-const SEG_FIELDS = [
-	{ key: "nairaWallet", label: "Naira Wallet Balance (₦)", type: "currency" },
-	{ key: "dollarWallet", label: "Dollar Wallet Balance ($)", type: "currency" },
-	{ key: "isFirstDeposit", label: "Is First Deposit", type: "boolean" },
-	{ key: "isFirstConversion", label: "Is First Conversion", type: "boolean" },
-	{ key: "kycLevel", label: "KYC Level", type: "enum" },
-	{ key: "depositCount", label: "Deposit Count", type: "number" },
-	{ key: "referralCount", label: "Referral Count", type: "number" },
-	{ key: "totalDeposited", label: "Total Deposited Amount", type: "currency" },
-	{ key: "daySinceSignUp", label: "Days Since Sign Up", type: "number" },
-	{ key: "daySinceLastTransact", label: "Days Since Last Transaction", type: "number" },
-	{ key: "country", label: "Country", type: "enum" },
-	{ key: "accountStatus", label: "Account Status", type: "enum" },
-];
-
-const SEG_ENUM_VALUES: Record<string, string[]> = {
-	kycLevel: ["0", "1", "2", "3"],
-	country: ["Nigeria", "Ghana", "Kenya", "Uganda", "United Kingdom", "United States", "Canada"],
-	accountStatus: ["Active", "Inactive", "Suspended", "Pending", "Flagged"],
-};
-
-const SEG_OPERATORS = ["=", "!=", ">", "<", ">=", "<=", "between"];
 
 const Segments = () => {
 	const navigate = useNavigate();

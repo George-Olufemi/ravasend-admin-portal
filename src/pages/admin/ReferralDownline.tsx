@@ -3,223 +3,23 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   GitMerge,
-  ChevronRight,
   Loader2,
-  Users,
-  Wallet,
-  Lock,
-  Gift,
-  DollarSign,
-  Bitcoin,
-  Mail,
-  Copy,
-  CheckCircle2,
 } from "lucide-react";
 import { referralAPI } from "@/lib/api";
-
-// ── Types ──
-export interface ReferralUserNode {
-  name: string;
-  email: string;
-  joined: string;
-  status: "active" | "inactive" | "pending";
-  volume: number;
-  txns: number;
-}
-
-export interface ReferralNode {
-  code: string;
-  user: ReferralUserNode;
-  referrals: ReferralNode[];
-}
-
-// ── Helpers ──
-function countDownline(node: ReferralNode): number {
-  return node.referrals.reduce((acc, child) => acc + 1 + countDownline(child), 0);
-}
-
-function fmtCompact(num: number): string {
-  if (num >= 1_000_000) return `₦${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `₦${(num / 1_000).toFixed(1)}K`;
-  return `₦${num.toLocaleString()}`;
-}
-
-function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
-  const initials = name
-    ? name
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "??";
-  return (
-    <div
-      className={`${
-        size === "sm" ? "size-7 text-[10px]" : "size-9 text-[11px]"
-      } rounded-full flex items-center justify-center font-bold text-white shrink-0`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
-    >
-      {initials}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const isAct = status?.toLowerCase() === "active" || status?.toLowerCase() === "completed" || status?.toLowerCase() === "done";
-  return (
-    <span
-      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-        isAct
-          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
-          : "bg-zinc-500/15 text-zinc-400 border-zinc-500/25"
-      }`}
-    >
-      {isAct ? "Active" : "Inactive"}
-    </span>
-  );
-}
-
-function PurpleBtn({
-  children,
-  onClick,
-  className = "",
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-[12px] text-white shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="mb-6">
-      <h1 className="text-xl font-bold text-foreground">{title}</h1>
-      {subtitle && <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>}
-    </div>
-  );
-}
-
-// ── Node Row Component ──
-function ReferralNodeRow({ node, depth = 0 }: { node: ReferralNode; depth?: number }) {
-  const [expanded, setExpanded] = useState(depth === 0);
-  const hasChildren = node.referrals.length > 0;
-  const totalDownline = countDownline(node);
-
-  return (
-    <div>
-      <div
-        className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all ${
-          depth === 0
-            ? "bg-primary/8 border border-primary/20 mb-1"
-            : "hover:bg-white/[0.025] border border-transparent hover:border-border"
-        }`}
-        style={{ marginLeft: depth * 24 }}
-        onClick={() => hasChildren && setExpanded((e) => !e)}
-      >
-        {hasChildren ? (
-          <div className="size-5 rounded-md border border-border flex items-center justify-center text-muted-foreground shrink-0">
-            <ChevronRight size={11} className={`transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} />
-          </div>
-        ) : (
-          <div className="size-5 shrink-0" />
-        )}
-        <Avatar name={node.user.name} size="sm" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className={`font-semibold text-foreground ${depth === 0 ? "text-[13px]" : "text-[12px]"}`}>{node.user.name}</p>
-            <code className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">{node.code}</code>
-            <StatusBadge status={node.user.status} />
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            {node.user.email} · Joined {node.user.joined}
-          </p>
-        </div>
-        <div className="flex items-center gap-5 shrink-0">
-          <div className="text-right">
-            <p className="text-[12px] font-mono font-bold text-foreground">{fmtCompact(node.user.volume)}</p>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">volume</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[12px] font-mono font-bold text-foreground">{node.user.txns}</p>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">txns</p>
-          </div>
-          {hasChildren && (
-            <div className="text-right min-w-[36px]">
-              <p className="text-[12px] font-mono font-bold text-primary">{totalDownline}</p>
-              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">downline</p>
-            </div>
-          )}
-        </div>
-      </div>
-      {expanded && node.referrals.map((child) => <ReferralNodeRow key={child.code} node={child} depth={depth + 1} />)}
-    </div>
-  );
-}
-
-// ── Helper to convert API Response to ReferralNode tree ──
-function buildTreeFromApi(apiData: any): ReferralNode {
-  const u = apiData.user;
-  const w = apiData.wallet;
-  const invitedList = apiData.invitedUsers || [];
-  const txnsList = apiData.transactions || [];
-
-  const totalNairaVal = w?.userId?.nairaWallet || w?.amount || 0;
-  const totalTxnCount = txnsList.length;
-
-  const children: ReferralNode[] = invitedList.map((inv: any) => {
-    const invUser = inv.userId || {};
-    return {
-      code: (invUser._id || inv._id || "").slice(-6).toUpperCase(),
-      user: {
-        name: invUser.fullName || "Invited User",
-        email: invUser.email || "-",
-        joined: inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "Recently",
-        status: invUser.status || "pending",
-        volume: inv.lockedAmount || inv.amount || 0,
-        txns: inv.amount > 0 ? 1 : 0,
-      },
-      referrals: [],
-    };
-  });
-
-  return {
-    code: u?.referralCode || u?.username || "REF-CODE",
-    user: {
-      name: u?.fullName || "User",
-      email: u?.email || "-",
-      joined: u?.createdAt ? new Date(u.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "Recently",
-      status: u?.status || "pending",
-      volume: totalNairaVal,
-      txns: totalTxnCount,
-    },
-    referrals: children,
-  };
-}
+import { PageHeader, PurpleBtn } from "@/components/admin/shared";
+import {
+  ReferralNode,
+  buildTreeFromApi,
+  countDownline,
+  fmtCompact,
+  getSearchParams,
+  ReferralNodeRow,
+} from "@/features/referral-downline";
 
 const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
   const [query, setQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
   const [searched, setSearched] = useState(false);
-
-  const getSearchParams = (search: string) => {
-    if (!search) return {};
-    if (search.includes("@")) return { email: search };
-    if (/^[A-Z0-9]{6}$/i.test(search)) return { referralCode: search };
-    return { username: search };
-  };
 
   const {
     data: apiResponse,

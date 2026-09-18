@@ -215,7 +215,6 @@ export type FeeFormState = {
   commissionPlatformPct: number;
 };
 
-// ─── UI Helpers ─────────────────────────────────────────────────────────────
 
 function DropdownMenu({
   items,

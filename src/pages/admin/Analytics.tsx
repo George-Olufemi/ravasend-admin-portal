@@ -2,92 +2,14 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { analyticsAPI, AnalyticsGraphItem } from "@/lib/api";
-
-function PageHeader({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
-        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
-      </div>
-      {action && <div>{action}</div>}
-    </div>
-  );
-}
-
-function DateInput({
-  value,
-  onChange,
-  label,
-  min,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  label?: string;
-  min?: string;
-}) {
-  return (
-    <div>
-      {label && <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">{label}</label>}
-      <input
-        type="date"
-        value={value}
-        min={min}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-secondary border border-border rounded-xl px-3 py-1.5 text-[12px] text-foreground focus:outline-none focus:border-primary/50 [color-scheme:dark]"
-      />
-    </div>
-  );
-}
-
-function PurpleBtn({
-  children,
-  onClick,
-  size = "md",
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  size?: "sm" | "md";
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center justify-center gap-2 rounded-xl text-[12px] font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-        size === "sm" ? "px-3 py-1.5" : "px-4 py-2.5"
-      }`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
-    >
-      {children}
-    </button>
-  );
-}
-
-const formatNaira = (v: number) => {
-  if (v >= 1_000_000) return `₦${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `₦${(v / 1_000).toFixed(1)}K`;
-  return `₦${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-};
-
-const formatDateLabel = (dateStr: string) => {
-  if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length === 3) {
-    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  }
-  return dateStr;
-};
+import { PageHeader, PurpleBtn } from "@/components/admin/shared";
+import {
+  DateInput,
+  formatNaira,
+  formatDateLabel,
+  metricConfig,
+  metricKeys,
+} from "@/features/analytics";
 
 export default function AnalyticsPage() {
   const [startDate, setStartDate] = useState("2026-06-01");
@@ -120,15 +42,6 @@ export default function AnalyticsPage() {
     txns: summary.totalTransaction ?? 0,
   };
 
-  const metricConfig = {
-    volume: { label: "Transaction Volume", color: "#7B3FE4", format: formatNaira },
-    signups: { label: "New Signups", color: "#34d399", format: (v: number) => v.toLocaleString() },
-    fees: { label: "Fees Collected", color: "#f59e0b", format: formatNaira },
-    txns: { label: "Transactions", color: "#60a5fa", format: (v: number) => v.toLocaleString() },
-  };
-
-  const metricKeys: Array<"volume" | "signups" | "fees" | "txns"> = ["volume", "signups", "fees", "txns"];
-
   const activeGraphItems: AnalyticsGraphItem[] = useMemo(() => {
     switch (metric) {
       case "volume":
@@ -147,7 +60,7 @@ export default function AnalyticsPage() {
   // Maps for table cross-referencing
   const txnsByDate = useMemo(() => {
     const map: Record<string, number> = {};
-    (graph.transactionCount || []).forEach((item) => {
+    (graph.transactionCount || []).forEach((item: any) => {
       map[item.date] = item.total;
     });
     return map;
@@ -155,7 +68,7 @@ export default function AnalyticsPage() {
 
   const feesByDate = useMemo(() => {
     const map: Record<string, number> = {};
-    (graph.fees || []).forEach((item) => {
+    (graph.fees || []).forEach((item: any) => {
       map[item.date] = item.total;
     });
     return map;
@@ -165,17 +78,17 @@ export default function AnalyticsPage() {
     // Collect all dates across graph metrics
     const allDates = Array.from(
       new Set([
-        ...(graph.transactionVolume || []).map((x) => x.date),
-        ...(graph.transactionCount || []).map((x) => x.date),
-        ...(graph.newUsers || []).map((x) => x.date),
-        ...(graph.fees || []).map((x) => x.date),
+        ...(graph.transactionVolume || []).map((x: any) => x.date),
+        ...(graph.transactionCount || []).map((x: any) => x.date),
+        ...(graph.newUsers || []).map((x: any) => x.date),
+        ...(graph.fees || []).map((x: any) => x.date),
       ])
     ).sort();
 
     const volMap: Record<string, number> = {};
-    (graph.transactionVolume || []).forEach((x) => (volMap[x.date] = x.total));
+    (graph.transactionVolume || []).forEach((x: any) => (volMap[x.date] = x.total));
     const userMap: Record<string, number> = {};
-    (graph.newUsers || []).forEach((x) => (userMap[x.date] = x.total));
+    (graph.newUsers || []).forEach((x: any) => (userMap[x.date] = x.total));
 
     const headers = ["Date", "Transaction Volume (NGN)", "Transactions", "New Signups", "Fees (NGN)"];
     const rows = allDates.map((date) => [
@@ -302,7 +215,7 @@ export default function AnalyticsPage() {
           </div>
         ) : activeGraphItems.length > 0 ? (
           <div className="h-56 flex items-end gap-1.5 overflow-x-auto pt-6 pb-2">
-            {activeGraphItems.map((d, i) => {
+            {activeGraphItems.map((d: any, i: number) => {
               const maxVal = Math.max(...activeGraphItems.map((x) => x.total), 1);
               const h = maxVal > 0 ? (d.total / maxVal) * 100 : 0;
               const dateLabel = formatDateLabel(d.date);
@@ -350,7 +263,7 @@ export default function AnalyticsPage() {
                   </td>
                 </tr>
               ) : topDaysByVolume.length > 0 ? (
-                topDaysByVolume.map((d, i) => (
+                topDaysByVolume.map((d: any, i: number) => (
                   <tr key={d.date} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
@@ -393,7 +306,7 @@ export default function AnalyticsPage() {
                   </td>
                 </tr>
               ) : topDaysBySignups.length > 0 ? (
-                topDaysBySignups.map((d, i) => (
+                topDaysBySignups.map((d: any, i: number) => (
                   <tr key={d.date} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">

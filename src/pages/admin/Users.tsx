@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   Download,
-  Search,
   Ban,
   Unlock,
   Copy,
@@ -12,92 +11,20 @@ import {
 } from "lucide-react";
 import { usersAPI, User } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
+import { fmtN, ngn } from "@/lib/formatters";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-
-function fmtN(num: number) {
-  return new Intl.NumberFormat().format(num || 0);
-}
-
-function ngn(num: number) {
-  return "₦" + fmtN(num);
-}
-
-function PageHeader({
-  title,
-  subtitle,
-  search,
-  onSearch,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  search?: string;
-  onSearch?: (v: string) => void;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{title}</h1>
-        {subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
-      </div>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-        {search !== undefined && onSearch && (
-          <div className="relative w-full sm:w-72">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder={search}
-              onChange={(e) => onSearch(e.target.value)}
-              className="w-full bg-secondary border border-border rounded-xl pl-9 pr-3 py-2.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
-            />
-          </div>
-        )}
-        {action}
-      </div>
-    </div>
-  );
-}
-
-function PurpleBtn({
-  children,
-  onClick,
-  className = "",
-  size = "md",
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  size?: "sm" | "md";
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center justify-center gap-2 rounded-xl font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 ${
-        size === "sm" ? "px-3 py-1.5 text-[11px]" : "px-4 py-2.5 text-[12px]"
-      } ${className}`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-white/[0.025] border border-border rounded-xl p-5">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="text-[22px] font-bold text-foreground leading-none mt-1">{value}</p>
-      {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
-    </div>
-  );
-}
+  PageHeader,
+  PurpleBtn,
+  StatCard,
+  TableWrap,
+  THead,
+  Pagination,
+  StatusBadge,
+  Avatar,
+  DropdownMenu,
+  SlidePanel,
+} from "@/components/admin/shared";
+import { filterUsers, downloadUsersCSV, checkIsFrozen } from "@/features/users";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[14px] font-bold text-foreground mb-0.5">{children}</h2>;
@@ -105,140 +32,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function SubLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-[11px] text-muted-foreground mb-4">{children}</p>;
-}
-
-function TableWrap({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-white/[0.025] border border-border rounded-xl overflow-x-auto w-full mb-4">
-      <table className="w-full text-left border-collapse">{children}</table>
-    </div>
-  );
-}
-
-function THead({ cols }: { cols: string[] }) {
-  return (
-    <thead>
-      <tr className="border-b border-border bg-white/[0.02]">
-        {cols.map((c, i) => (
-          <th key={i} className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
-            {c}
-          </th>
-        ))}
-      </tr>
-    </thead>
-  );
-}
-
-function Pagination({ page, total, perPage, onChange }: { page: number; total: number; perPage: number; onChange: (p: number) => void }) {
-  const totalPages = Math.max(1, Math.ceil(total / perPage));
-  return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 text-[12px] text-muted-foreground">
-      <span>Showing {total === 0 ? 0 : Math.min((page - 1) * perPage + 1, total)} - {Math.min(page * perPage, total)} of {total}</span>
-      <div className="flex items-center gap-2">
-        <button disabled={page <= 1} onClick={() => onChange(page - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Previous</button>
-        <span>Page {page} of {totalPages}</span>
-        <button disabled={page >= totalPages} onClick={() => onChange(page + 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-white/5 transition-colors">Next</button>
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const norm = (status || "").toLowerCase();
-  if (norm === "active" || norm === "verified") {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
-        {status}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-zinc-500/15 text-zinc-400 border border-zinc-500/20 uppercase">
-      {status}
-    </span>
-  );
-}
-
-function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
-  const initials = (name || "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  const sz = size === "md" ? "size-10 text-[13px]" : "size-8 text-[11px]";
-  return (
-    <div
-      className={`${sz} rounded-full flex items-center justify-center font-bold text-white shrink-0`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
-    >
-      {initials}
-    </div>
-  );
-}
-
-function DropdownMenu({
-  items,
-  onClose,
-}: {
-  items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }[];
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-xl shadow-xl z-50 p-1 divide-y divide-border/50"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {items.map((item, i) => (
-        <button
-          key={i}
-          onClick={() => {
-            item.onClick();
-            onClose();
-          }}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] font-medium rounded-lg transition-colors ${
-            item.danger
-              ? "text-red-400 hover:bg-red-500/10"
-              : "text-foreground hover:bg-white/5"
-          }`}
-        >
-          {item.icon}
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function SlidePanel({
-  open,
-  onClose,
-  title,
-  subtitle,
-  children,
-  footer,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-}) {
-  return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-[480px] overflow-y-auto bg-background p-6 flex flex-col justify-between">
-        <div>
-          <SheetHeader className="mb-4">
-            <SheetTitle className="text-lg font-bold text-foreground">{title}</SheetTitle>
-            {subtitle && <p className="text-[12px] text-muted-foreground">{subtitle}</p>}
-          </SheetHeader>
-          {children}
-        </div>
-        {footer && <div className="pt-5 border-t border-border mt-6">{footer}</div>}
-      </SheetContent>
-    </Sheet>
-  );
 }
 
 const Users = () => {
@@ -262,15 +55,7 @@ const Users = () => {
   const users: User[] = useMemo(() => usersData?.users || [], [usersData]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return users;
-    const lower = search.toLowerCase();
-    return users.filter(
-      (u) =>
-        (u.fullName || "").toLowerCase().includes(lower) ||
-        (u.email || "").toLowerCase().includes(lower) ||
-        (u.phoneNumber || "").includes(search) ||
-        (u._id || "").includes(search)
-    );
+    return filterUsers(users, search);
   }, [users, search]);
 
   const paged = useMemo(() => {
@@ -279,8 +64,7 @@ const Users = () => {
 
   const isFrozen = (id: string) => {
     const u = users.find((x) => x._id === id);
-    if (u?.isBlocked) return true;
-    return frozenIds.has(id);
+    return checkIsFrozen(u, frozenIds);
   };
 
   const openFreeze = (u: User) => {
@@ -332,46 +116,7 @@ const Users = () => {
   };
 
   const downloadCSV = () => {
-    if (!filtered.length) return;
-    const headers = [
-      "ID",
-      "Full Name",
-      "Email",
-      "Phone",
-      "Naira Wallet",
-      "Dollar Wallet",
-      "KYC Level",
-      "Verified",
-      "Blocked",
-      "Has Quidax",
-      "Created At",
-    ];
-
-    const rows = filtered.map((u) => [
-      u._id,
-      u.fullName,
-      u.email,
-      u.phoneNumber || "",
-      u.nairaWallet || 0,
-      u.dollarWallet || 0,
-      u.kycLevel || 0,
-      u.isVerified || false,
-      u.isBlocked || false,
-      u.hasQuidaxId || false,
-      u.createdAt || "",
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers, ...rows].map((e) => e.join(",")).join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", search ? "filtered-users.csv" : "users.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadUsersCSV(filtered, search);
   };
 
   const activeCount = useMemo(() => users.filter((u) => !u.isBlocked).length, [users]);

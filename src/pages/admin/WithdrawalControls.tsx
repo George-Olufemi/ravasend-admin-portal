@@ -13,89 +13,19 @@ import {
 import { format } from "date-fns";
 import { systemSettingsAPI } from "@/lib/api";
 
-// ── Types ──
-interface AccessControlStatus {
-  _id: string;
-  userId?: {
-    _id: string;
-    fullName: string;
-    email: string;
-    phoneNumber?: string;
-    role?: string;
-  };
-  isPermitted: boolean; // true = withdrawals active, false = paused
-  createdAt: string;
-  updatedAt: string;
-}
+import {
+  AccessControlStatus,
+  AccessControlStatusResponse,
+  AuditLogEntry,
+  AuditLogResponse,
+  WITHDRAWAL_STATUS_QUERY_KEY,
+  WITHDRAWAL_AUDIT_LOG_QUERY_KEY,
+  SAMPLE_AUDIT_LOG,
+  parseAuditEntry,
+  PageHeader,
+  Toggle,
+} from "@/features/withdrawal-controls";
 
-interface AccessControlStatusResponse {
-  message: string;
-  data: AccessControlStatus;
-}
-
-interface AuditLogEntry {
-  _id: string;
-  userId?: {
-    _id: string;
-    fullName: string;
-    email: string;
-    phoneNumber?: string;
-    role?: string;
-  };
-  featureName: string;
-  email?: string;
-  ipAddress?: string;
-  browser?: string;
-  device?: string;
-  location?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-interface AuditLogResponse {
-  success: boolean;
-  message: string;
-  data: AuditLogEntry[];
-}
-
-const WITHDRAWAL_STATUS_QUERY_KEY = ["withdrawal-pause-status"] as const;
-const WITHDRAWAL_AUDIT_LOG_QUERY_KEY = ["withdrawal-pause-audit-log"] as const;
-
-// ── Helpers ──
-function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="mb-6">
-      <h1 className="text-xl font-bold text-foreground">{title}</h1>
-      {subtitle && <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>}
-    </div>
-  );
-}
-
-function Toggle({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      className={`w-11 h-6 rounded-full transition-colors relative disabled:opacity-50 ${on ? "bg-primary" : "bg-secondary"}`}
-    >
-      <span className={`size-4 rounded-full bg-white absolute top-1 transition-transform ${on ? "left-6" : "left-1"}`} />
-    </button>
-  );
-}
-
-const parseAuditEntry = (entry: AuditLogEntry) => {
-  const isPause = entry.featureName?.toLowerCase().includes("disabled");
-  return {
-    action: isPause ? "PAUSED" : "RESUMED",
-    label: isPause ? "Withdrawals PAUSED" : "Withdrawals RESUMED",
-  };
-};
-
-const SAMPLE_AUDIT_LOG = [
-  { id: "1", action: "PAUSED", actor: "Chukwuemeka Obi", role: "Super Admin", reason: "Elevated risk on high-value transfer batch", at: "Jul 2, 2026 at 14:23" },
-  { id: "2", action: "RESUMED", actor: "Tobi Oluwaseun", role: "Super Admin", reason: "Batch cleared risk checks", at: "Jun 28, 2026 at 09:15" },
-  { id: "3", action: "PAUSED", actor: "Chidinma Eze", role: "Finance / Ops", reason: "Upstream provider maintenance on PalmPay channel", at: "Jun 14, 2026 at 18:40" },
-];
 
 const WithdrawalControls = () => {
   const queryClient = useQueryClient();

@@ -11,69 +11,16 @@ import {
 import { auditsAPI, AuditRecord } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function fmtN(num: number) {
-	return new Intl.NumberFormat().format(num || 0);
-}
-
-function fmtTime(iso: string) {
-	if (!iso) return "—";
-	const d = new Date(iso);
-	return d.toLocaleString("en-GB", {
-		day: "2-digit",
-		month: "short",
-		year: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
-
-function getInitials(nameOrEmail: string) {
-	if (!nameOrEmail) return "AD";
-	if (nameOrEmail.includes(" ")) {
-		const parts = nameOrEmail.split(" ");
-		return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
-	}
-	return nameOrEmail.slice(0, 2).toUpperCase();
-}
-
-function PurpleBtn({
-	children,
-	onClick,
-	disabled,
-	className = "",
-}: {
-	children: React.ReactNode;
-	onClick?: () => void;
-	disabled?: boolean;
-	className?: string;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			disabled={disabled}
-			className={`text-[12px] font-bold text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 shadow-glow ${className}`}
-			style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
-		>
-			{children}
-		</button>
-	);
-}
-
-function StatCard({ label, value, sub }: { label: string; value: string; sub: string }) {
-	return (
-		<div className="bg-card border border-border/50 rounded-xl p-4 shadow-card">
-			<p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">{label}</p>
-			<p className="text-[24px] font-bold text-foreground leading-none">{value}</p>
-			<p className="text-[10px] text-muted-foreground/70 mt-1">{sub}</p>
-		</div>
-	);
-}
-
-// ─── Main Audits Component ──────────────────────────────────────────────────
+import { fmtN } from "@/lib/formatters";
+import { PurpleBtn, StatCard } from "@/components/admin/shared";
+import {
+	fmtTime,
+	getInitials,
+	SEVERITIES,
+	sevConfig,
+	catConfig,
+	statusConfig,
+} from "@/features/audits";
 
 const Audits = () => {
 	const [search, setSearch] = useState("");
@@ -100,32 +47,6 @@ const Audits = () => {
 		);
 		return ["All", ...cats];
 	}, [ALL_AUDITS]);
-
-	const SEVERITIES = ["All", "info", "warning", "critical"];
-
-	const sevConfig: Record<string, { cls: string; label: string }> = {
-		info: { cls: "bg-blue-500/15 text-blue-400 border-blue-500/20", label: "Info" },
-		warning: { cls: "bg-amber-500/15 text-amber-400 border-amber-500/20", label: "Warning" },
-		critical: { cls: "bg-red-500/15 text-red-400 border-red-500/20", label: "Critical" },
-	};
-
-	const catConfig: Record<string, string> = {
-		Login: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-		"User Access Control": "bg-rose-500/10 text-rose-400 border-rose-500/20",
-		"Access Control": "bg-rose-500/10 text-rose-400 border-rose-500/20",
-		Fee: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-		Promo: "bg-pink-500/10 text-pink-400 border-pink-500/20",
-		Users: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-		Transactions: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-		Withdrawals: "bg-red-500/10 text-red-400 border-red-500/20",
-		Campaigns: "bg-teal-500/10 text-teal-400 border-teal-500/20",
-		Competitions: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-	};
-
-	const statusConfig: Record<string, string> = {
-		SUCCESS: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-		FAILED: "bg-red-500/15 text-red-400 border-red-500/20",
-	};
 
 	// Filter audits
 	const filtered = useMemo(() => {
@@ -297,26 +218,6 @@ const Audits = () => {
 
 			{/* Filters */}
 			<div className="flex items-center gap-3 flex-wrap">
-				{/* {CATEGORIES.length > 1 && (
-					<div className="flex items-center gap-1 bg-white/[0.03] border border-border rounded-xl p-1 overflow-x-auto max-w-full">
-						{CATEGORIES.map((c) => (
-							<button
-								key={c}
-								type="button"
-								onClick={() => {
-									setFilterType(c);
-									setPg(1);
-								}}
-								className={`px-3 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all ${filterType === c ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-									}`}
-								style={filterType === c ? { background: "linear-gradient(135deg,#7B3FE4,#5B2AB8)" } : {}}
-							>
-								{c}
-							</button>
-						))}
-					</div>
-				)} */}
-
 				<div className="flex items-center gap-1 bg-white/[0.03] border border-border rounded-xl p-1 overflow-x-auto">
 					{SEVERITIES.map((s) => (
 						<button
@@ -373,8 +274,8 @@ const Audits = () => {
 					const normWarn = (a.warning || "info").toLowerCase();
 					const sevKey = normWarn.includes("crit") ? "critical" : normWarn.includes("warn") ? "warning" : "info";
 					const sev = sevConfig[sevKey] || sevConfig.info;
-					const catName = a.resourceType || a.featureName;
-					const catCls = catConfig[catName] || "bg-violet-500/10 text-violet-400 border-violet-500/20";
+					// const catName = a.resourceType || a.featureName;
+					// const catCls = catConfig[catName] || "bg-violet-500/10 text-violet-400 border-violet-500/20";
 					const statusCls = statusConfig[a.status || ""] || "bg-zinc-500/15 text-zinc-400 border-zinc-500/20";
 
 					return (
@@ -405,12 +306,6 @@ const Audits = () => {
 										<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${sev.cls}`}>
 											{sev.label}
 										</span>
-
-										{/* {catName && (
-											<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${catCls}`}>
-												{catName}
-											</span>
-										)} */}
 
 										{a.status && (
 											<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}`}>
