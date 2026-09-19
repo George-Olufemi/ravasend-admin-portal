@@ -53,6 +53,14 @@ export type {
   AnalyticsGraph,
   AnalyticsResponse,
   ApiFee,
+  CompetitionItem,
+  CompetitionTimelineStatus,
+  CompetitionTimelineStatusResponse,
+  CompetitionsResponse,
+  SingleCompetitionResponse,
+  CreateCompetitionPayload,
+  CompetitionParticipantItem,
+  CompetitionParticipantsResponse,
 } from "./types";
 
 import type {
@@ -81,6 +89,13 @@ import type {
   SingleSegmentResponse,
   CreateSegmentPayload,
   AnalyticsResponse,
+  CompetitionTimelineStatusResponse,
+  CompetitionsResponse,
+  SingleCompetitionResponse,
+  CreateCompetitionPayload,
+  CompetitionParticipantsResponse,
+  CompetitionItem,
+  CompetitionParticipantItem,
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
@@ -644,6 +659,37 @@ export const auditAPI = {
 export const analyticsAPI = {
   getAnalytics: async (startDate: string, endDate: string): Promise<AnalyticsResponse> => {
     const response = await api.get(`/api/v1/analytics/get-analytics?startDate=${startDate}&endDate=${endDate}`);
+    return response.data;
+  },
+};
+
+export const competitionAPI = {
+  getTimelineStatus: async (): Promise<CompetitionTimelineStatusResponse> => {
+    const response = await api.get("/api/v1/competition/getCompetitionTimeLineStatus");
+    return response.data;
+  },
+  getAllCompetitions: async (): Promise<CompetitionsResponse> => {
+    const response = await api.get("/api/v1/competition/getAllCompetitions");
+    return response.data;
+  },
+  getCompetitionById: async (id: string): Promise<SingleCompetitionResponse> => {
+    const response = await api.get(`/api/v1/competition/getCompetitionById/${id}`);
+    return response.data;
+  },
+  createCompetition: async (data: CreateCompetitionPayload): Promise<SingleCompetitionResponse> => {
+    const response = await api.post("/api/v1/competition/createCompetition", data);
+    return response.data;
+  },
+  updateCompetition: async (id: string, data: CreateCompetitionPayload): Promise<SingleCompetitionResponse> => {
+    const response = await api.put(`/api/v1/competition/updateCompetition/${id}`, data);
+    return response.data;
+  },
+  deleteCompetition: async (id: string): Promise<any> => {
+    const response = await api.delete(`/api/v1/competition/deleteCompetitions/${id}`);
+    return response.data;
+  },
+  getCompetitionParticipants: async (competitionId: string): Promise<CompetitionParticipantsResponse> => {
+    const response = await api.get(`/api/v1/competition/getCompetitionParticipants/${competitionId}/participants`);
     return response.data;
   },
 };

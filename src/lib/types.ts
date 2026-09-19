@@ -556,3 +556,81 @@ export interface AnalyticsResponse {
 
 // Alias for Fee used in Fee.tsx
 export type ApiFee = Fee;
+
+export interface CompetitionItem {
+  _id: string;
+  title: string;
+  competitionType: string;
+  assets: string[];
+  tagline: string;
+  seasonLabel: string;
+  status: "LIVE" | "UPCOMING" | "DRAFT" | "ENDED" | string;
+  minQualifyAmount: number;
+  entryCondition: string;
+  prizePool: number;
+  startDate: string;
+  endDate: string;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
+}
+
+export interface CompetitionTimelineStatus {
+  activeCompetition: number;
+  totalPrizePool: number;
+  totalParticipant: number;
+  pendingDisbursments: number;
+}
+
+export interface CompetitionTimelineStatusResponse {
+  status: string;
+  message: string;
+  data: CompetitionTimelineStatus;
+}
+
+export interface CompetitionsResponse {
+  status: string;
+  message: string;
+  total?: number;
+  data: CompetitionItem[];
+}
+
+export interface SingleCompetitionResponse {
+  status: string;
+  message: string;
+  data: CompetitionItem;
+}
+
+export interface CreateCompetitionPayload {
+  title: string;
+  competitionType: string;
+  assets: string[];
+  tagline: string;
+  seasonLabel: string;
+  status: string;
+  minQualifyAmount: number;
+  entryCondition: string;
+  prizePool: number;
+  startDate: string;
+  endDate: string;
+}
+
+export interface CompetitionParticipantItem {
+  _id?: string;
+  userId?: string | { _id: string; email?: string; fullName?: string; username?: string };
+  user?: string;
+  email?: string;
+  rank?: number;
+  metric?: number;
+  metricLabel?: string;
+  createdAt?: string;
+  [key: string]: any;
+}
+
+export interface CompetitionParticipantsResponse {
+  status: string;
+  message: string;
+  total?: number;
+  data: CompetitionParticipantItem[];
+}
+
