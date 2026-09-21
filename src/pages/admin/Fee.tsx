@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 // ─── Constants & Configurations ─────────────────────────────────────────────
 
@@ -281,14 +282,12 @@ function PurpleBtn({
   disabled?: boolean;
 }) {
   return (
-    <button
+    <Button
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-      style={{ background: "linear-gradient(135deg, #7B3FE4, #5B2AB8)" }}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -538,8 +537,6 @@ function FeeRuleCard({
     </div>
   );
 }
-
-// ─── Fee Form Component ─────────────────────────────────────────────────────
 
 function FeeRuleForm({
   value,
@@ -1155,17 +1152,17 @@ function FeePage() {
     else if (form.feeModel === "free") feeType = "FREE";
     else if (form.feeModel === "commission") feeType = "COMMISSION";
 
+    const categoryMap: Record<string, string> = {
+      Crypto: "crypto",
+      "Cross-border": "cross border",
+      "Bank Transfers": "bank transfer",
+      "Bills & Airtime": "bill payment",
+    };
+
     const basePayload: any = {
       amount: rawAmt,
       ruleName: form.name || `${form.category} Fee`,
-      category:
-        form.category === "Cross-border"
-          ? "Cross Border"
-          : form.category === "Bank Transfers"
-          ? "Bank Withdrwawl"
-          : form.category === "Bills & Airtime"
-          ? "Bill"
-          : form.category,
+      category: categoryMap[form.category] || form.category.toLowerCase(),
       applicationType,
       currency: form.currencies[0] || "NGN",
       feeType,
