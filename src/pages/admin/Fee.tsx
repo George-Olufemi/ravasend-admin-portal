@@ -772,45 +772,29 @@ function FeeRuleForm({
         </div>
       )}
       {(value.feeModel === "percentage" || value.feeModel === "flat+percentage") && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
-              Percentage (%)
-            </label>
-            <input
-              value={value.percent}
-              onChange={(e) => onChange({ ...value, percent: e.target.value })}
-              className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
-              placeholder="e.g. 2%"
-            />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] text-muted-foreground font-semibold">
-                Maximum cap
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={value.noCap}
-                  onChange={(e) => onChange({ ...value, noCap: e.target.checked })}
-                  className="accent-primary"
-                />
-                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Infinity size={10} /> No cap
-                </span>
-              </label>
-            </div>
-            <input
-              value={value.cap}
-              onChange={(e) => onChange({ ...value, cap: e.target.value })}
-              disabled={value.noCap}
-              className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 disabled:opacity-40"
-              placeholder="e.g. 5000"
-            />
-          </div>
+        <div>
+          <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
+            Percentage (%) <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={value.percent}
+            onChange={(e) => onChange({ ...value, percent: e.target.value })}
+            className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+            placeholder="e.g. 2%"
+          />
         </div>
       )}
+      <div>
+        <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
+          Maximum Amount (Cap) <span className="text-red-400">*</span>
+        </label>
+        <input
+          value={value.cap}
+          onChange={(e) => onChange({ ...value, cap: e.target.value, noCap: false })}
+          className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+          placeholder="e.g. 10000"
+        />
+      </div>
 
       {/* Commission model */}
       {value.feeModel === "commission" && (
@@ -933,7 +917,7 @@ function FeePage() {
     base: "",
     percent: "",
     cap: "",
-    noCap: true,
+    noCap: false,
     currencies: ["NGN"],
     minAmount: "",
     maxAmount: "",
@@ -944,13 +928,29 @@ function FeePage() {
   const [form, setForm] = useState<FeeFormState>(blankForm());
 
   // Map API response items to FeeRule format
-  const mapApiFeeToRule = (item: ApiFee, defaultCategory: string): FeeRule => {
-    let cat = defaultCategory;
+  const mapApiFeeToRule = (item: ApiFee): FeeRule => {
+    let cat = "Other";
     if (item.category) {
-      if (item.category.toLowerCase().includes("crypto")) cat = "Crypto";
-      else if (item.category.toLowerCase().includes("cross")) cat = "Cross-border";
-      else if (item.category.toLowerCase().includes("bank")) cat = "Bank Transfers";
-      else if (item.category.toLowerCase().includes("bill")) cat = "Bills & Airtime";
+      const c = item.category.toLowerCase();
+      if (c.includes("crypto")) cat = "Crypto";
+      else if (c.includes("cross")) cat = "Cross-border";
+      else if (c.includes("bank")) cat = "Bank Transfers";
+      else if (c.includes("bill")) cat = "Bills & Airtime";
+    }
+
+    if (cat === "Other" && item.applicationType) {
+      const app = item.applicationType.toUpperCase();
+      if (app.includes("ASSET")) cat = "Crypto";
+      else if (app.includes("CORRIDOR")) cat = "Cross-border";
+      else if (app.includes("BANK")) cat = "Bank Transfers";
+      else if (app.includes("SERVICE")) cat = "Bills & Airtime";
+    }
+
+    if (cat === "Other") {
+      if (item.assets !== undefined) cat = "Crypto";
+      else if (item.corridors !== undefined) cat = "Cross-border";
+      else if (item.banks !== undefined) cat = "Bank Transfers";
+      else if (item.services !== undefined) cat = "Bills & Airtime";
     }
 
     const feeModelRaw = (item.feeType || "FLAT").toLowerCase();
@@ -963,16 +963,16 @@ function FeePage() {
     let providers: string[] = [];
     let scope: "all" | "specific" = "all";
 
-    if (item.assets && item.assets.length > 0) {
+    if (item.assets && Array.isArray(item.assets) && item.assets.length > 0) {
       scope = "specific";
       providers = item.assets;
-    } else if (item.corridors && item.corridors.length > 0) {
+    } else if (item.corridors && Array.isArray(item.corridors) && item.corridors.length > 0) {
       scope = "specific";
       providers = item.corridors;
-    } else if (item.banks && item.banks.length > 0) {
+    } else if (item.banks && Array.isArray(item.banks) && item.banks.length > 0) {
       scope = "specific";
       providers = item.banks;
-    } else if (item.services && item.services.length > 0) {
+    } else if (item.services && Array.isArray(item.services) && item.services.length > 0) {
       scope = "specific";
       providers = item.services;
     } else if (item.applicationType && item.applicationType.startsWith("SPECIFIC")) {
@@ -1003,57 +1003,24 @@ function FeePage() {
     };
   };
 
-  // Fetch all 4 fee endpoints
+  // Fetch all fees via single getAllAsyncFee endpoint
   const { data: feeData, isLoading } = useQuery({
     queryKey: ["fees"],
     queryFn: async () => {
-      const [conversionRes, forexRes, withdrawalRes, billRes] = await Promise.all([
-        feesAPI.getAll(),
-        feesAPI.getAllForexFee(),
-        feesAPI.getAllWithdrawalFees(),
-        feesAPI.getAllBillFees(),
-      ]);
-
-      return {
-        conversion: conversionRes?.data || [],
-        forex: forexRes?.data || [],
-        withdrawal: withdrawalRes?.data || [],
-        bill: billRes?.data || [],
-      };
+      const res = await feesAPI.getAll();
+      return res?.data || [];
     },
   });
 
   useEffect(() => {
     if (feeData) {
-      const list: FeeRule[] = [];
-
-      (feeData.conversion || []).forEach((item: ApiFee) => {
-        list.push(mapApiFeeToRule(item, "Crypto"));
-      });
-
-      (feeData.forex || []).forEach((item: ApiFee) => {
-        list.push(mapApiFeeToRule(item, "Cross-border"));
-      });
-
-      (feeData.withdrawal || []).forEach((item: ApiFee) => {
-        list.push(mapApiFeeToRule(item, "Bank Transfers"));
-      });
-
-      (feeData.bill || []).forEach((item: ApiFee) => {
-        list.push(mapApiFeeToRule(item, "Bills & Airtime"));
-      });
-
+      const list: FeeRule[] = feeData.map((item: ApiFee) => mapApiFeeToRule(item));
       setFees(list);
     }
   }, [feeData]);
 
   const createMutation = useMutation({
-    mutationFn: ({ feeType, data }: { feeType: string; data: any }) => {
-      if (feeType === "forex") return feesAPI.createForexFee(data);
-      if (feeType === "withdrawal") return feesAPI.createWithdrawalFee(data);
-      if (feeType === "bill") return feesAPI.createBillFee(data);
-      return feesAPI.create(data);
-    },
+    mutationFn: (data: any) => feesAPI.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fees"] });
       setShowPanel(false);
@@ -1131,6 +1098,15 @@ function FeePage() {
   };
 
   const saveRule = () => {
+    if (!form.cap || !form.cap.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Maximum Amount (Cap) is required",
+      });
+      return;
+    }
+
     const rawAmt = Number(form.base.replace(/[^0-9.]/g, "")) || 0;
 
     const appTypeMap: Record<string, { all: string; specific: string }> = {
@@ -1153,45 +1129,46 @@ function FeePage() {
     else if (form.feeModel === "commission") feeType = "COMMISSION";
 
     const categoryMap: Record<string, string> = {
-      Crypto: "crypto",
-      "Cross-border": "cross border",
-      "Bank Transfers": "bank transfer",
-      "Bills & Airtime": "bill payment",
+      Crypto: "Crypto",
+      "Cross-border": "Cross Border",
+      "Bank Transfers": "Bank Transfer",
+      "Bills & Airtime": "Bill Payment",
     };
 
-    const basePayload: any = {
+    const payload: any = {
       amount: rawAmt,
       ruleName: form.name || `${form.category} Fee`,
-      category: categoryMap[form.category] || form.category.toLowerCase(),
+      category: categoryMap[form.category] || form.category,
       applicationType,
       currency: form.currencies[0] || "NGN",
       feeType,
-      percentage: form.percent || "",
-      maximumAmount: form.noCap ? "" : form.cap,
+      maximumAmount: form.cap.trim(),
     };
 
-    if (form.category === "Crypto") {
-      basePayload.assets = form.scope === "specific" ? form.providers : [];
-    } else if (form.category === "Cross-border") {
-      basePayload.corridors = form.scope === "specific" ? form.providers : [];
-    } else if (form.category === "Bank Transfers") {
-      basePayload.banks = form.scope === "specific" ? form.providers : [];
-    } else if (form.category === "Bills & Airtime") {
-      basePayload.services = form.scope === "specific" ? form.providers : [];
+    if (
+      (feeType === "PERCENTAGE" || feeType === "FLAT + PERCENTAGE") &&
+      form.percent &&
+      form.percent.trim() !== ""
+    ) {
+      payload.percentage = form.percent.trim();
+    }
+
+    if (form.scope === "specific" && form.providers && form.providers.length > 0) {
+      if (form.category === "Crypto") {
+        payload.assets = form.providers;
+      } else if (form.category === "Cross-border") {
+        payload.corridors = form.providers;
+      } else if (form.category === "Bills & Airtime") {
+        payload.services = form.providers;
+      } else if (form.category === "Bank Transfers") {
+        payload.banks = form.providers;
+      }
     }
 
     if (editingId && !editingId.startsWith("f")) {
-      updateMutation.mutate({ id: editingId, data: basePayload });
+      updateMutation.mutate({ id: editingId, data: payload });
     } else {
-      if (form.category === "Crypto")
-        createMutation.mutate({ feeType: "conversion", data: basePayload });
-      else if (form.category === "Cross-border")
-        createMutation.mutate({ feeType: "forex", data: basePayload });
-      else if (form.category === "Bank Transfers")
-        createMutation.mutate({ feeType: "withdrawal", data: basePayload });
-      else if (form.category === "Bills & Airtime")
-        createMutation.mutate({ feeType: "bill", data: basePayload });
-      else createMutation.mutate({ feeType: "conversion", data: basePayload });
+      createMutation.mutate(payload);
     }
   };
 

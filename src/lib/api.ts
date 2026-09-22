@@ -316,7 +316,7 @@ export const promoCodesAPI = {
 export const feesAPI = {
   getAll: async (): Promise<FeeResponse> => {
     try {
-      const response = await api.get("/api/v1/receive/getFee");
+      const response = await api.get("/api/v1/receive/getAllAsyncFee");
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -329,68 +329,8 @@ export const feesAPI = {
     }
   },
 
-  getAllForexFee: async (): Promise<FeeResponse> => {
-    try {
-      const response = await api.get("/api/v1/receive/getForexFee");
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return {
-          message: error.response?.data?.message || "No forex fees found",
-          data: [],
-        };
-      }
-      throw error;
-    }
-  },
-
-  getAllWithdrawalFees: async (): Promise<FeeResponse> => {
-    try {
-      const response = await api.get("/api/v1/receive/getWithdrawalFee");
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return {
-          message: error.response?.data?.message || "No withdrawal fees found",
-          data: [],
-        };
-      }
-      throw error;
-    }
-  },
-
-  getAllBillFees: async (): Promise<FeeResponse> => {
-    try {
-      const response = await api.get("/api/v1/receive/getBillFee");
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return {
-          message: error.response?.data?.message || "No bill fees found",
-          data: [],
-        };
-      }
-      throw error;
-    }
-  },
-
   create: async (data: any): Promise<any> => {
-    const response = await api.post("/api/v1/receive/createFee", data);
-    return response.data;
-  },
-
-  createForexFee: async (data: any): Promise<any> => {
-    const response = await api.post("/api/v1/receive/createForexFee", data);
-    return response.data;
-  },
-
-  createWithdrawalFee: async (data: any): Promise<any> => {
-    const response = await api.post("/api/v1/receive/createWithdrawalFee", data);
-    return response.data;
-  },
-
-  createBillFee: async (data: any): Promise<any> => {
-    const response = await api.post("/api/v1/receive/createBillFee", data);
+    const response = await api.post("/api/v1/receive/createGroupAsyncFee", data);
     return response.data;
   },
 

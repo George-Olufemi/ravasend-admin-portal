@@ -237,45 +237,29 @@ export function FeeRuleForm({
         </div>
       )}
       {(value.feeModel === "percentage" || value.feeModel === "flat+percentage") && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
-              Percentage (%)
-            </label>
-            <input
-              value={value.percent}
-              onChange={(e) => onChange({ ...value, percent: e.target.value })}
-              className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
-              placeholder="e.g. 2%"
-            />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] text-muted-foreground font-semibold">
-                Maximum cap
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={value.noCap}
-                  onChange={(e) => onChange({ ...value, noCap: e.target.checked })}
-                  className="accent-primary"
-                />
-                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Infinity size={10} /> No cap
-                </span>
-              </label>
-            </div>
-            <input
-              value={value.cap}
-              onChange={(e) => onChange({ ...value, cap: e.target.value })}
-              disabled={value.noCap}
-              className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 disabled:opacity-40"
-              placeholder="e.g. 5000"
-            />
-          </div>
+        <div>
+          <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
+            Percentage (%) <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={value.percent}
+            onChange={(e) => onChange({ ...value, percent: e.target.value })}
+            className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+            placeholder="e.g. 2%"
+          />
         </div>
       )}
+      <div>
+        <label className="text-[11px] text-muted-foreground font-semibold block mb-1.5">
+          Maximum Amount (Cap) <span className="text-red-400">*</span>
+        </label>
+        <input
+          value={value.cap}
+          onChange={(e) => onChange({ ...value, cap: e.target.value, noCap: false })}
+          className="w-full bg-secondary border border-border rounded-xl px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+          placeholder="e.g. 10000"
+        />
+      </div>
 
       {/* Commission model */}
       {value.feeModel === "commission" && (
