@@ -2,7 +2,7 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { campaignAPI, CampaignItem } from "@/lib/api";
 import { SlidePanel, StatusBadge, PurpleBtn } from "@/components/admin/shared";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CampaignDetailSheetProps {
   campaignId: string | null;
@@ -13,7 +13,7 @@ interface CampaignDetailSheetProps {
 export function CampaignDetailSheet({ campaignId, onClose, onUpdateStatus }: CampaignDetailSheetProps) {
   const { data: campaignRes, isLoading } = useQuery({
     queryKey: ["campaign", campaignId],
-    queryFn: () => (campaignId ? campaignAPI.getCampaignById(campaignId) : null),
+    queryFn: () => campaignAPI.getById(campaignId!),
     enabled: !!campaignId,
   });
 
@@ -27,8 +27,10 @@ export function CampaignDetailSheet({ campaignId, onClose, onUpdateStatus }: Cam
       subtitle={campaign?.campaignName || "View campaign summary"}
     >
       {isLoading ? (
-        <div className="flex items-center justify-center p-8">
-          <LoadingSpinner size="md" />
+        <div className="space-y-4 p-2">
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-lg" />
         </div>
       ) : campaign ? (
         <div className="space-y-4 text-[13px]">

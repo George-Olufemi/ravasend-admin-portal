@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageSkeleton } from "@/components/admin/shared";
 
 import {
   PromoCode,
@@ -285,11 +286,7 @@ function PromoCodesPage() {
       : "₦0";
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+    return <PageSkeleton type="grid" statCards={3} />;
   }
 
   return (

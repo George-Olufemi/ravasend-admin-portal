@@ -8,3 +8,4 @@ export { StatusBadge } from "./StatusBadge";
 export { SlidePanel } from "./SlidePanel";
 export { Avatar } from "./Avatar";
 export { DropdownMenu } from "./DropdownMenu";
+export * from "./SkeletonLoaders";

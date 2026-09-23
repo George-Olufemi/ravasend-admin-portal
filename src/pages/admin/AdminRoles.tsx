@@ -24,6 +24,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/admin/shared";
 
 import {
   AdminRole,
@@ -292,11 +293,7 @@ function AdminRolesPage() {
             <THead cols={["Admin", "Role", "Status", "Last Active", "Added", "Actions"]} />
             <tbody className="divide-y divide-border">
               {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-[12px] text-muted-foreground">
-                    <Loader2 className="animate-spin inline mr-2" size={14} /> Loading admin team members...
-                  </td>
-                </tr>
+                <TableSkeleton rows={5} cols={6} />
               ) : (
                 displayAdmins
                   .filter((a) => !viewRole || a.role === viewRole)

@@ -12,7 +12,7 @@ import { auditsAPI, AuditRecord } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { fmtN } from "@/lib/formatters";
-import { PurpleBtn, StatCard } from "@/components/admin/shared";
+import { PurpleBtn, StatCard, PageSkeleton } from "@/components/admin/shared";
 import {
 	fmtTime,
 	getInitials,
@@ -144,11 +144,7 @@ const Audits = () => {
 	};
 
 	if (isLoading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<LoadingSpinner size="lg" />
-			</div>
-		);
+		return <PageSkeleton type="table" statCards={4} />;
 	}
 
 	if (error) {

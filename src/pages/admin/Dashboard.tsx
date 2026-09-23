@@ -12,11 +12,13 @@ import {
 } from "@/lib/api";
 import { format } from "date-fns";
 import { fmtN, ngn } from "@/lib/formatters";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   PageHeader,
   PurpleBtn,
   StatCard,
   StatusBadge,
+  PageSkeleton,
 } from "@/components/admin/shared";
 import {
   VolumeChart,
@@ -173,11 +175,7 @@ const Dashboard = () => {
     loadingGraph;
 
   if (isLoadingOverall) {
-    return (
-      <div className="flex-1 flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin text-primary" size={32} />
-      </div>
-    );
+    return <PageSkeleton type="grid" cardsCount={4} rowsCount={5} />;
   }
 
   const activeUsersCount = activeUsersRes?.data?.totalActiveUsers ?? 0;
@@ -260,9 +258,7 @@ const Dashboard = () => {
             </select>
           </div>
           {loadingGraph ? (
-            <div className="flex items-center justify-center h-[180px]">
-              <Loader2 className="animate-spin text-primary" size={24} />
-            </div>
+            <Skeleton className="w-full h-[180px] rounded-xl" />
           ) : (
             <VolumeChart data={chartData} />
           )}
@@ -274,9 +270,11 @@ const Dashboard = () => {
             <p className="text-[11px] text-muted-foreground mb-4">Messaging buckets</p>
             <div className="space-y-3">
               {loadingSegments ? (
-                <p className="text-[12px] text-muted-foreground flex items-center gap-2">
-                  <Loader2 className="animate-spin" size={12} />
-                </p>
+                <div className="space-y-3 py-1">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                  <Skeleton className="h-4 w-4/6" />
+                </div>
               ) : activeSegments.length > 0 ? (
                 activeSegments.slice(0, 5).map((s: any) => (
                   <div key={s.id} className="flex items-center justify-between">
@@ -313,8 +311,9 @@ const Dashboard = () => {
         </div>
         <div className="divide-y divide-border">
           {loadingCampaigns ? (
-            <div className="p-8 text-center text-[12px] text-muted-foreground flex items-center justify-center gap-2">
-              <Loader2 className="animate-spin" size={14} />
+            <div className="p-4 space-y-3">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
             </div>
           ) : activeCampaigns.length > 0 ? (
             activeCampaigns.map((c: any) => (

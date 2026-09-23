@@ -26,6 +26,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageSkeleton } from "@/components/admin/shared";
 
 // ─── Constants & Configurations ─────────────────────────────────────────────
 
@@ -1186,11 +1187,7 @@ function FeePage() {
   const visible = filterCat === "All" ? fees : fees.filter((f) => f.category === filterCat);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+    return <PageSkeleton type="grid" statCards={3} />;
   }
 
   return (

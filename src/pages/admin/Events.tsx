@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PageSkeleton } from "@/components/admin/shared";
 import { usersAPI, User } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
@@ -146,11 +147,7 @@ const Events = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+    return <PageSkeleton type="table" statCards={3} />;
   }
 
   if (error) {

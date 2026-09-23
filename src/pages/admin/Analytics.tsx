@@ -2,7 +2,8 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { analyticsAPI, AnalyticsGraphItem } from "@/lib/api";
-import { PageHeader, PurpleBtn } from "@/components/admin/shared";
+import { PageHeader, PurpleBtn, TableSkeleton } from "@/components/admin/shared";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DateInput,
   formatNaira,
@@ -210,8 +211,10 @@ export default function AnalyticsPage() {
         </div>
 
         {isLoading ? (
-          <div className="h-56 flex items-center justify-center text-[12px] text-muted-foreground gap-2">
-            <Loader2 className="animate-spin text-primary" size={18} /> Loading analytics chart...
+          <div className="h-56 flex items-end gap-2 overflow-x-auto pt-6 pb-2">
+            {Array.from({ length: 14 }).map((_, i) => (
+              <Skeleton key={i} className="flex-1 min-w-[20px] rounded-t-sm" style={{ height: `${(i % 5) * 15 + 35}%` }} />
+            ))}
           </div>
         ) : activeGraphItems.length > 0 ? (
           <div className="h-56 flex items-end gap-1.5 overflow-x-auto pt-6 pb-2">
@@ -257,11 +260,7 @@ export default function AnalyticsPage() {
           <table className="w-full">
             <tbody className="divide-y divide-border">
               {isLoading ? (
-                <tr>
-                  <td colSpan={3} className="px-5 py-6 text-center text-[12px] text-muted-foreground">
-                    <Loader2 className="animate-spin inline mr-2" size={14} /> Loading volume data...
-                  </td>
-                </tr>
+                <TableSkeleton rows={5} cols={3} />
               ) : topDaysByVolume.length > 0 ? (
                 topDaysByVolume.map((d: any, i: number) => (
                   <tr key={d.date} className="hover:bg-white/[0.02] transition-colors">
@@ -300,11 +299,7 @@ export default function AnalyticsPage() {
           <table className="w-full">
             <tbody className="divide-y divide-border">
               {isLoading ? (
-                <tr>
-                  <td colSpan={3} className="px-5 py-6 text-center text-[12px] text-muted-foreground">
-                    <Loader2 className="animate-spin inline mr-2" size={14} /> Loading signup data...
-                  </td>
-                </tr>
+                <TableSkeleton rows={5} cols={3} />
               ) : topDaysBySignups.length > 0 ? (
                 topDaysBySignups.map((d: any, i: number) => (
                   <tr key={d.date} className="hover:bg-white/[0.02] transition-colors">

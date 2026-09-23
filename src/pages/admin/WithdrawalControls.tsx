@@ -159,7 +159,7 @@ const WithdrawalControls = () => {
                 }`}
             >
               {isStatusLoading ? (
-                <Loader2 className="animate-spin text-muted-foreground" size={24} />
+                <Skeleton className="size-6 rounded-full" />
               ) : paused ? (
                 <Lock size={24} className="text-red-400" />
               ) : (
@@ -169,7 +169,7 @@ const WithdrawalControls = () => {
             <div>
               <p className="text-[15px] sm:text-[16px] font-bold text-foreground">Withdrawal Kill Switch</p>
               {isStatusLoading ? (
-                <p className="text-[13px] text-muted-foreground mt-1">Loading status...</p>
+                <Skeleton className="h-4 w-28 rounded mt-1" />
               ) : isStatusError ? (
                 <p className="text-[13px] font-semibold text-amber-400 mt-1">Failed to connect to backend — using local status</p>
               ) : (
@@ -309,8 +309,9 @@ const WithdrawalControls = () => {
         </div>
         <div className="divide-y divide-border">
           {isAuditLoading ? (
-            <div className="p-8 text-center text-muted-foreground text-[12px] flex items-center justify-center gap-2">
-              <Loader2 className="animate-spin" size={14} /> Loading audit log...
+            <div className="p-5 space-y-3">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
             </div>
           ) : liveAuditLog.length > 0 ? (
             liveAuditLog.map((entry) => {

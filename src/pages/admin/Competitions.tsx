@@ -15,6 +15,7 @@ import { COMP_CATEGORIES, COMP_TYPES } from "@/features/competitions";
 import { ngn, fmtN, Avatar, DateInput, PageHeader, PurpleBtn, SlidePanel, StatCard, THead, TableWrap } from "@/features/competitions";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { TableSkeleton, PageSkeleton } from "@/components/admin/shared";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function useCountdown(endDateStr?: string) {
@@ -352,11 +353,7 @@ export default function CompetitionsPage() {
           <THead cols={["Competition", "Type & Assets", "Status", "Prize Pool", "Qualifying Amount", "Start / End", "Actions"]} />
           <tbody className="divide-y divide-border">
             {isLoadingComps ? (
-              <tr>
-                <td colSpan={7} className="py-12 text-center">
-                  <LoadingSpinner />
-                </td>
-              </tr>
+              <TableSkeleton rows={6} cols={7} />
             ) : filteredComps.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-12 text-center text-[13px] text-muted-foreground">
@@ -477,9 +474,7 @@ export default function CompetitionsPage() {
       </div>
 
       {isLoadingSingleComp ? (
-        <div className="py-20 flex justify-center">
-          <LoadingSpinner />
-        </div>
+        <PageSkeleton type="grid" cardsCount={4} rowsCount={4} />
       ) : !currentDetailComp ? (
         <div className="p-8 text-center text-muted-foreground">Competition not found.</div>
       ) : (
@@ -575,9 +570,7 @@ export default function CompetitionsPage() {
 
               <div className="divide-y divide-border">
                 {isLoadingParticipants ? (
-                  <div className="py-12 text-center">
-                    <LoadingSpinner />
-                  </div>
+                  <TableSkeleton rows={4} cols={4} />
                 ) : filteredParticipants.length === 0 ? (
                   <div className="py-12 text-center text-[13px] text-muted-foreground">
                     No participants recorded yet for this competition.

@@ -23,6 +23,7 @@ import {
   Avatar,
   DropdownMenu,
   SlidePanel,
+  TableSkeleton,
 } from "@/components/admin/shared";
 import { filterUsers, downloadUsersCSV, checkIsFrozen } from "@/features/users";
 
@@ -154,11 +155,7 @@ const Users = () => {
         <THead cols={["User", "Email", "Phone", "Status / Wallet", "NGN Balance", "USD Balance", "KYC", "Joined", ""]} />
         <tbody className="divide-y divide-border">
           {isLoading ? (
-            <tr>
-              <td colSpan={9} className="px-5 py-12 text-center text-[12px] text-muted-foreground">
-                <Loader2 className="animate-spin inline mr-2" size={14} /> Loading registered users...
-              </td>
-            </tr>
+            <TableSkeleton rows={6} cols={9} />
           ) : paged.length > 0 ? (
             paged.map((u) => {
               const frozen = isFrozen(u._id);

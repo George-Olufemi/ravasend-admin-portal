@@ -1,12 +1,24 @@
 import React from "react";
 import { Transaction } from "@/lib/api";
 import { Hash } from "lucide-react";
+import { fmtN, ngn } from "@/lib/formatters";
 
 export const getTxnType = (trx: Transaction): string => {
   const src = (trx.source || "").toLowerCase();
   const curr = (trx.currency || "").toLowerCase();
+  const rawType = (trx.type || "").toLowerCase();
 
-  if (src.includes("crypto swap") || curr.includes("to ngn") || curr.includes("to usd")) {
+  // Crypto Deposit checks first
+  if (
+    src.includes("crypto deposit") ||
+    (src.includes("crypto") && src.includes("deposit")) ||
+    rawType === "crypto deposit" ||
+    rawType.includes("crypto deposit")
+  ) {
+    return "Crypto Deposit";
+  }
+
+  if (src.includes("crypto swap") || curr.includes("to ngn") || curr.includes("to usd") || rawType.includes("swap")) {
     return "Crypto Swap";
   }
   if (src.includes("forex") || src.includes("monirate") || curr.includes("-") || curr.includes("usd to ngn")) {
@@ -25,9 +37,12 @@ export const getTxnType = (trx: Transaction): string => {
     return "Fiat Deposit";
   }
   if (src.includes("transfer received") || src.includes("wallet funding") || src.includes("convert paymentlink") || src.includes("deposit")) {
+    if (["btc", "eth", "usdt", "usdc", "sol", "trx", "bnb", "matic", "xrp", "avax"].includes(curr)) {
+      return "Crypto Deposit";
+    }
     return "Fiat Deposit";
   }
-  if (src.includes("crypto deposit") || curr.includes("btc") || curr.includes("eth") || curr.includes("usdt") || curr.includes("usdc") || curr.includes("sol")) {
+  if (["btc", "eth", "usdt", "usdc", "sol", "trx", "bnb", "matic", "xrp", "avax"].includes(curr)) {
     return "Crypto Deposit";
   }
   if (src.includes("fee")) {
@@ -37,6 +52,46 @@ export const getTxnType = (trx: Transaction): string => {
 };
 
 export const isDeposit = (type: string) => ["Crypto Deposit", "Fiat Deposit"].includes(type);
+
+export const formatTxnAmount = (trx: Transaction, type: string): string => {
+  const amt = trx.amount || 0;
+  const rawCurr = (trx.currency || "").trim();
+  const currUpper = rawCurr.toUpperCase();
+  const srcLower = (trx.source || "").toLowerCase();
+
+  const cryptoCoins = ["USDT", "USDC", "BTC", "ETH", "TRX", "SOL", "BNB", "MATIC", "XRP", "AVAX"];
+  const isCryptoCurrency = cryptoCoins.includes(currUpper) || srcLower.includes("crypto");
+
+  const sign = isDeposit(type) ? "+" : "";
+
+  // If it's a crypto deposit or crypto currency (not NGN)
+  if (type === "Crypto Deposit" || isCryptoCurrency) {
+    if (rawCurr && currUpper !== "NGN") {
+      const formattedNum = typeof amt === "number" ? fmtN(amt) : amt;
+      return `${sign}${formattedNum} ${rawCurr}`;
+    }
+  }
+
+  // Default NGN or empty currency
+  if (!rawCurr || currUpper === "NGN") {
+    return `${sign}${ngn(Number(amt) || 0)}`;
+  }
+
+  // Other currencies (USD, GBP, EUR)
+  const formattedNum = typeof amt === "number" ? fmtN(amt) : amt;
+  return `${sign}${formattedNum} ${rawCurr}`;
+};
+
+export const formatTxnFee = (trx: Transaction): string => {
+  const fee = trx.fee || 0;
+  if (!fee) return "—";
+  const rawCurr = (trx.currency || "").trim().toUpperCase();
+  const cryptoCoins = ["USDT", "USDC", "BTC", "ETH", "TRX", "SOL", "BNB", "MATIC", "XRP", "AVAX"];
+  if (cryptoCoins.includes(rawCurr)) {
+    return `${fmtN(fee)} ${rawCurr}`;
+  }
+  return ngn(fee);
+};
 
 export const getTypeStyle = (type: string) => {
   if (isDeposit(type)) return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";

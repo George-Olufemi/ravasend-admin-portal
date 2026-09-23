@@ -12,6 +12,7 @@ import {
   THead,
   Pagination,
   StatusBadge,
+  TableSkeleton,
 } from "@/components/admin/shared";
 import {
   TABS,
@@ -20,6 +21,8 @@ import {
   getTypeStyle,
   downloadTransactionsCSV,
   renderDetails,
+  formatTxnAmount,
+  formatTxnFee,
 } from "@/features/transactions";
 
 const Transactions = () => {
@@ -166,11 +169,7 @@ const Transactions = () => {
         <THead cols={["Txn ID", "User", "Type", "Details", "Amount", "Fee", "Status", "Date"]} />
         <tbody className="divide-y divide-border">
           {isLoading ? (
-            <tr>
-              <td colSpan={8} className="px-5 py-12 text-center text-[12px] text-muted-foreground">
-                <Loader2 className="animate-spin inline mr-2" size={14} /> Loading user transactions...
-              </td>
-            </tr>
+            <TableSkeleton rows={8} cols={8} />
           ) : paged.length > 0 ? (
             paged.map((t) => {
               const type = getTxnType(t);
@@ -187,7 +186,7 @@ const Transactions = () => {
                       {type}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 max-w-[200px]">{renderDetails(t, type)}</td>
+                  <td className="px-5 py-3.5 max-w-[200px] capitalize">{renderDetails(t, type)}</td>
                   <td className="px-5 py-3.5">
                     <p
                       className={`text-[13px] font-mono font-bold whitespace-nowrap ${isDeposit(type)
@@ -199,12 +198,12 @@ const Transactions = () => {
                               : "text-foreground"
                         }`}
                     >
-                      {isDeposit(type) ? "+" : ""}{ngn(t.amount || 0)}
+                      {formatTxnAmount(t, type)}
                     </p>
                   </td>
                   <td className="px-5 py-3.5">
                     {t.fee && t.fee > 0 ? (
-                      <p className="text-[11px] font-mono text-amber-400">{ngn(t.fee)}</p>
+                      <p className="text-[11px] font-mono text-amber-400">{formatTxnFee(t)}</p>
                     ) : (
                       <span className="text-[11px] text-muted-foreground">—</span>
                     )}

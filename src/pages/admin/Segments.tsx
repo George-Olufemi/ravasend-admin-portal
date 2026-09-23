@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CardGridSkeleton } from "@/components/admin/shared";
 
 import {
 	Criterion,
@@ -324,9 +325,7 @@ const Segments = () => {
 
 			{/* Segments Cards Grid */}
 			{isSegmentsLoading ? (
-				<div className="flex items-center justify-center py-20">
-					<LoadingSpinner size="lg" />
-				</div>
+				<CardGridSkeleton count={4} />
 			) : (
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 					{filteredSegments.map((seg, i) => {

@@ -6,7 +6,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { referralAPI } from "@/lib/api";
-import { PageHeader, PurpleBtn } from "@/components/admin/shared";
+import { PageHeader, PurpleBtn, CardGridSkeleton } from "@/components/admin/shared";
 import {
   ReferralNode,
   buildTreeFromApi,
@@ -77,10 +77,7 @@ const ReferralDownline = ({ isTab = false }: { isTab?: boolean }) => {
       </div>
 
       {isLoading && (
-        <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground text-[13px]">
-          <Loader2 className="animate-spin inline-block mb-3 text-primary" size={24} />
-          <p className="font-semibold text-foreground">Fetching referral downline data...</p>
-        </div>
+        <CardGridSkeleton cards={4} />
       )}
 
       {searched && !isLoading && resultTree && (

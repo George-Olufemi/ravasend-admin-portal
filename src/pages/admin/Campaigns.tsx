@@ -9,10 +9,11 @@ import {
 import { Archive, CheckCircle2, ChevronLeft, ChevronRight, Edit, Eye, Image, Mail, MonitorPlay, MoreHorizontal, PauseCircle, Play, PlayCircle, Plus, RotateCcw, Smartphone, Target, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChannelBadge } from "@/features/dashboard";
-import { StatCard, StatusBadge } from "@/components/admin/shared";
+import { StatCard, StatusBadge, TableSkeleton } from "@/components/admin/shared";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const Campaigns = () => {
@@ -419,8 +420,9 @@ const Campaigns = () => {
 							<div>
 								<label className="text-[11px] text-muted-foreground font-semibold block mb-3">Target Segment</label>
 								{isSegmentsLoading ? (
-									<div className="flex items-center justify-center p-8 bg-card border border-border rounded-xl">
-										<LoadingSpinner size="md" />
+									<div className="space-y-2">
+										<Skeleton className="h-14 w-full rounded-xl" />
+										<Skeleton className="h-14 w-full rounded-xl" />
 									</div>
 								) : segments.length === 0 ? (
 									<div className="p-4 rounded-xl border border-border bg-card text-center text-[12px] text-muted-foreground">
@@ -1406,13 +1408,7 @@ const Campaigns = () => {
 							</thead>
 							<tbody className="divide-y divide-border/50">
 								{(listTab === "deleted" ? isDeletedCampaignsLoading : isCampaignsLoading) ? (
-									<tr>
-										<td colSpan={8} className="text-center py-12">
-											<div className="flex items-center justify-center gap-2 text-muted-foreground">
-												<LoadingSpinner size="sm" />
-											</div>
-										</td>
-									</tr>
+									<TableSkeleton rows={5} cols={8} />
 								) : paginatedCampaigns.length === 0 ? (
 									<tr>
 										<td colSpan={8} className="text-center py-8 text-muted-foreground">

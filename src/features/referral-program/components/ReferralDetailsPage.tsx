@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Download, Search, Loader2 } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import { ReferralDetailRecord } from "@/lib/api";
 import { Page } from "../types";
 import { PurpleBtn, StatCard, TableWrap, THead, Pagination } from "./shared";
+import { TableSkeleton } from "@/components/admin/shared";
 
 export function ReferralDetailsPage({
   setPage,
@@ -86,11 +87,7 @@ export function ReferralDetailsPage({
         <THead cols={["Referred User", "Referred By", "Stage", "Reward", "Date"]} />
         <tbody className="divide-y divide-border">
           {isLoading ? (
-            <tr>
-              <td colSpan={5} className="px-5 py-8 text-center text-[12px] text-muted-foreground">
-                <Loader2 className="animate-spin inline mr-2" size={14} /> Loading referral user details...
-              </td>
-            </tr>
+            <TableSkeleton rows={5} cols={5} />
           ) : paged.length > 0 ? (
             paged.map((r, i) => (
               <tr key={i} className="hover:bg-white/[0.02] transition-colors">

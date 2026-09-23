@@ -1,10 +1,11 @@
 import React from "react";
-import { Download, Users, Share2, TrendingUp, DollarSign, Zap, Loader2 } from "lucide-react";
+import { Download, Users, Share2, TrendingUp, DollarSign, Zap } from "lucide-react";
 import { ReferralBonus, ReferralDetailRecord } from "@/lib/api";
 import { Page } from "../types";
 import { fmtN } from "../utils";
 import { PurpleBtn } from "./shared";
 import { ViralLoopEditor } from "./ViralLoopEditor";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function ReferralOverviewPage({
   setPage,
@@ -102,8 +103,10 @@ export function ReferralOverviewPage({
           </div>
         </div>
         {isLoading ? (
-          <div className="p-8 text-center text-muted-foreground text-[12px] flex items-center justify-center gap-2">
-            <Loader2 className="animate-spin" size={14} /> Loading referrers performance...
+          <div className="space-y-3 py-2">
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
           </div>
         ) : (
           <div className="space-y-3">
