@@ -479,6 +479,18 @@ export const campaignAPI = {
     const response = await api.put(`/api/v1/campaign/updateCampaign/${id}`, data);
     return response.data;
   },
+  togglePauseCampaign: async (id: string): Promise<SingleCampaignResponse> => {
+    try {
+      const response = await api.patch(`/api/v1/campaign/pauseCampaign/${id}/toggle`);
+      return response.data;
+    } catch (err: any) {
+      if (err?.response?.status === 404 || err?.response?.status === 405) {
+        const response = await api.patch(`/api/v1/campaign/pauseCampaign/${id}/toggle`);
+        return response.data;
+      }
+      throw err;
+    }
+  },
   deleteCampaign: async (id: string): Promise<any> => {
     const response = await api.delete(`/api/v1/campaign/deleteCampaign/${id}`);
     return response.data;

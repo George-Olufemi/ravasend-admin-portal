@@ -179,6 +179,28 @@ const Campaigns = () => {
 		},
 	});
 
+	const togglePauseMutation = useMutation({
+		mutationFn: (id: string) => campaignAPI.togglePauseCampaign(id),
+		onSuccess: (res) => {
+			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["deletedCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["campaign-detail"] });
+			queryClient.invalidateQueries({ queryKey: ["totalCampaigns"] });
+			queryClient.invalidateQueries({ queryKey: ["totalActiveCampaigns"] });
+			toast({
+				title: "Status Updated",
+				description: res?.message || "Campaign pause status toggled successfully.",
+			});
+		},
+		onError: (err: any) => {
+			toast({
+				variant: "destructive",
+				title: "Toggle Failed",
+				description: err?.response?.data?.message || err.message || "Failed to toggle campaign status",
+			});
+		},
+	});
+
 	const deleteCampaignMutation = useMutation({
 		mutationFn: campaignAPI.deleteCampaign,
 		onSuccess: () => {
@@ -351,9 +373,8 @@ const Campaigns = () => {
 		}
 	};
 
-	const handleToggleStatus = (id: string, currentStatus: string) => {
-		const newStatus = currentStatus === "active" ? "paused" : "active";
-		updateCampaignMutation.mutate({ id, data: { status: newStatus } });
+	const handleToggleStatus = (id: string, currentStatus?: string) => {
+		togglePauseMutation.mutate(id);
 	};
 
 	const handleDeleteCampaign = (id: string) => {
@@ -1529,13 +1550,13 @@ const Campaigns = () => {
 																	}}
 																	className="w-full flex items-center gap-2 px-3 py-2 text-[12px] rounded-lg hover:bg-white/5 text-foreground"
 																>
-																	{c.status === "active" ? (
+																	{c.status?.toLowerCase() === "paused" ? (
 																		<>
-																			<PauseCircle size={13} className="text-amber-400" /> Pause
+																			<PlayCircle size={13} className="text-emerald-400" /> Resume
 																		</>
 																	) : (
 																		<>
-																			<PlayCircle size={13} className="text-emerald-400" /> Resume
+																			<PauseCircle size={13} className="text-amber-400" /> Pause
 																		</>
 																	)}
 																</button>

@@ -67,7 +67,7 @@ export function CampaignDetailSheet({ campaignId, onClose, onUpdateStatus }: Cam
               }}
               size="sm"
             >
-              {campaign.status === "active" ? "Pause Campaign" : "Activate Campaign"}
+              {campaign.status?.toLowerCase() === "paused" ? "Resume Campaign" : "Pause Campaign"}
             </PurpleBtn>
           </div>
         </div>
